@@ -1,1 +1,1 @@
-You can use this package to achieve to purpose.
+You can use this package to achieve your purpose.
