@@ -1,11 +1,12 @@
 #!python3
-from eyes_soatra.depends.depends_404 import depends as __depends_no_data
-from eyes_soatra.depends.depends_no_data import depends as __depends_404
+from eyes_soatra.depends.depends_404 import depends as __depends_404
+from eyes_soatra.depends.depends_no_data import depends as __depends_no_data
 from translate import Translator as __Translator
 from requests_html import HTML as __HTML
 import requests as __requests
 import jellyfish as __jellyfish
 import re as __re
+import time as __time
 
 # Suppress only the single warning from urllib3 needed.
 __requests.packages.urllib3.disable_warnings()
@@ -37,8 +38,6 @@ __paragraph_xpaths = [
 __content_xpaths = [
     '//h1[self::*//text()]/following-sibling::*|//h1[self::*//text()]/following-sibling::*//*|//*[self::*//h1[self::*//text()] and self::*/*[last()=1]]/following-sibling::*[1]//*'
 ]
-# //h1[self::*//text()]/following-sibling::p[1]|//h1[self::*//text()]/following-sibling::*//p[1]|//*[({self::div or self::span}) and self::*//h1[self::*//text()] and self::*/*[last()=1]]/following-sibling::*[1][{self::div or self::span}]//p[1]
-# ---------------------- helpers
 
 def __sort_dict(dict):
     keys = list(dict.keys())
@@ -158,9 +157,10 @@ def __bad_page(
                     
                     if len(token_header) >= __header_min_length:
                         s1 = __jellyfish.jaro_similarity(depend, token_header)
-                        s2 = __jellyfish.jaro_winkler_similarity(depend, token_header)
+                        # s2 = __jellyfish.jaro_winkler_similarity(depend, token_header)
                         
-                        points = (s1 + s2) / 2
+                        # points = (s1 + s2) / 2
+                        points = s1
                         
                         if points > header_high_point:
                             header_high_point = points
@@ -201,9 +201,10 @@ def __bad_page(
                     
                     if len(token_paragraph) >= __paragraph_min_length:
                         s1 = __jellyfish.jaro_similarity(depend, token_paragraph)
-                        s2 = __jellyfish.jaro_winkler_similarity(depend, token_paragraph)
+                        # s2 = __jellyfish.jaro_winkler_similarity(depend, token_paragraph)
                         
-                        points = (s1 + s2) / 2
+                        # points = (s1 + s2) / 2
+                        points = s1
                         
                         if points > paragraph_high_point:
                             paragraph_high_point = points
@@ -246,7 +247,9 @@ def __bad_page(
 def view_page(
     url,
     lang='ja',
-    timeout=10,
+    tries=3,
+    sleep=5,
+    timeout=30,
     verify=False,
     depends=None,
     separator=None,
@@ -264,82 +267,94 @@ def view_page(
     
     **requests_options
 ):
-    try:
-        response = __requests.get(
-            url,
-            timeout=timeout,
-            allow_redirects=allow_redirects,
-            verify=verify,
-            headers=__headers,
-            **requests_options
-        )
-        status_code = response.status_code
-        redirected = response.is_redirect
-        expired = response.headers.get('Expires')
-        expired = expired if expired else (response.headers.get('expires') or False)
-        expired_obj = {'expired': expired} if expired else {}
-        
-        if status_code >= 400 and status_code <= 499:
-            return __sort_dict({
-                'active': False,
-                'checked': False,
-                **expired_obj,
-                'error': f'Client error responses',
-                'redirected': redirected,
-                'url': response.url,
-                'status': status_code
-            })
+    tried = 0
+    
+    while True:
+        try:
+            tried += 1
+            response = __requests.get(
+                url,
+                timeout=timeout,
+                allow_redirects=allow_redirects,
+                verify=verify,
+                headers=__headers,
+                **requests_options
+            )
+            status_code = response.status_code
+            redirected = response.is_redirect
+            expired = response.headers.get('Expires')
+            expired = expired if expired else (response.headers.get('expires') or False)
+            expired_obj = {'expired': expired} if expired else {}
+            tried_obj = {'tried': tried} if tried > 1 else {}
             
-        if status_code >= 500 and status_code <= 599:
-            return __sort_dict({
-                'active': False,
-                'checked': False,
-                **expired_obj,
-                'error': f'Server error responses',
-                'redirected': redirected,
-                'url': response.url,
-                'status': status_code
-            })
- 
-        html = response.content
-        highlight = __get_highlight(
-            html,
-            header_xpath,
-            paragraph_xpath,
-            content_xpath,
-        )
-        
-        if not (lang == 'ja' or lang == 'en'):
-            translate = __Translator(from_lang=lang, to_lang='en')
-            
-            for key in highlight:
-                for i in range(0, len(highlight[key])):
-                    highlight[key][i] = translate.translate(highlight[key][i])
-        
-        return __sort_dict({
-            **__bad_page(
-                highlight,
-                separator,
-                depends,
-                header_min_point,
-                paragraph_min_point,
+            if status_code >= 400 and status_code <= 499:
+                return __sort_dict({
+                    'active': False,
+                    'checked': False,
+                    **expired_obj,
+                    **tried_obj,
+                    'error': f'Client error responses: {status_code}',
+                    'redirected': redirected,
+                    'url': response.url,
+                    'status': status_code
+                })
                 
-                show_highlight,
-                show_header,
-                show_paragraph,
-                show_content,
-            ),
-            **expired_obj,
-            'redirected': redirected,
-            'url': response.url,
-            'status': status_code
-        })
+            if status_code >= 500 and status_code <= 599:
+                return __sort_dict({
+                    'active': False,
+                    'checked': False,
+                    **expired_obj,
+                    **tried_obj,
+                    'error': f'Server error responses: {status_code}',
+                    'redirected': redirected,
+                    'url': response.url,
+                    'status': status_code
+                })
+    
+            html = response.content
+            highlight = __get_highlight(
+                html,
+                header_xpath,
+                paragraph_xpath,
+                content_xpath,
+            )
+            
+            if not (lang == 'ja' or lang == 'en'):
+                translate = __Translator(from_lang=lang, to_lang='en')
+                
+                for key in highlight:
+                    for i in range(0, len(highlight[key])):
+                        highlight[key][i] = translate.translate(highlight[key][i])
+            
+            return __sort_dict({
+                **__bad_page(
+                    highlight,
+                    separator,
+                    depends,
+                    header_min_point,
+                    paragraph_min_point,
+                    
+                    show_highlight,
+                    show_header,
+                    show_paragraph,
+                    show_content,
+                ),
+                **expired_obj,
+                **tried_obj,
+                'redirected': redirected,
+                'url': response.url,
+                'status': status_code
+            })
 
-    except Exception as error:
-        return __sort_dict({
-            'active': False,
-            'checked': False,
-            'error': error,
-            'redirected': False,
-            'url': url,
-        })
+        except Exception as error:
+            if tried >= tries:
+                return __sort_dict({
+                    'active': None,
+                    'checked': False,
+                    'error': error,
+                    'redirected': False,
+                    'url': url,
+                    'tried': tries
+                })
+                
+            __time.sleep(sleep)
