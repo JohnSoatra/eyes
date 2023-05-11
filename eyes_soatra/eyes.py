@@ -1,12 +1,14 @@
 #!python3
 from eyes_soatra.depends.depends_404 import depends as __depends_404
 from eyes_soatra.depends.depends_no_data import depends as __depends_no_data
+from eyes_soatra.needs.user_agents import User_Agents as __User_Agents
 from translate import Translator as __Translator
 from requests_html import HTML as __HTML
 import requests as __requests
 import jellyfish as __jellyfish
 import re as __re
 import time as __time
+import random
 
 # Suppress only the single warning from urllib3 needed.
 __requests.packages.urllib3.disable_warnings()
@@ -19,7 +21,16 @@ except AttributeError:
 
 # private global variables
 
-__headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+# __user_agents = [
+#     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
+#     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
+#     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+#     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+#     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+#     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15',
+#     'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15',
+# ]
+# __headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
 __separator = '\||-|:'
 __header_min_length = 3
 __paragraph_min_length = 7
@@ -80,36 +91,37 @@ def __highlighter(
     
     for xpath in __header_xpaths + (header_xpath if type(header_xpath) == list else []):
         header_list = html.xpath(f'({xpath})//text()')
+        header = ' '.join(header_list)
+        header = __strip(header)
         
-        for header in header_list:
-            header = __strip(header)
-            
-            if len(header) >= __header_min_length:
-                header_texts.append(header)
+        if len(header) >= __header_min_length:
+            header_texts.append(header)
+        # for header in header_list:
     
     for xpath in __paragraph_xpaths + (paragraph_xpath if type(paragraph_xpath) == list else []):
         paragraph_list = html.xpath(f'({xpath})//text()')
+        paragraph = ' '.join(paragraph_list)
+        paragraph = __strip(paragraph)
         
-        for paragraph in paragraph_list:
-            paragraph = __strip(paragraph)
-            
-            if len(paragraph) >= __paragraph_min_length:
-                paragraph_texts.append(paragraph)
+        if len(paragraph) >= __paragraph_min_length:
+            paragraph_texts.append(paragraph)
 
         if len(paragraph_texts):
             break
+        # for paragraph in paragraph_list:
     
     for xpath in __content_xpaths + (content_xpath if type(content_xpath) == list else []):
         content_list = html.xpath(f'({xpath})//text()')
+        content = ' '.join(content_list)
+        content = __strip(content)
         
-        for content in content_list:
-            content = __strip(content)
-            
-            if len(content) > 0:
-                content_texts.append(content)
+        if len(content) > 0:
+            content_texts.append(content)
 
         if len(content_texts):
             break
+        # for content in content_list:
+            
 
     return {
         'headers': header_texts,
@@ -247,12 +259,14 @@ def __bad_page(
 def view_page(
     url,
     lang='ja',
-    tries=3,
-    sleep=5,
-    timeout=30,
+    sleep=2,
+    timeout=20,
     verify=False,
+    headers=None,
     depends=None,
     separator=None,
+    tries_reject=50,
+    tries_timeout=3,
     header_xpath=None,
     paragraph_xpath=None,
     content_xpath=None,
@@ -268,35 +282,49 @@ def view_page(
     **requests_options
 ):
     tried = 0
+    agents = []
     
     while True:
         try:
             tried += 1
+            user_agent = random.choice(__User_Agents)
+            
+            while user_agent in agents:
+                user_agent = random.choice(__User_Agents)
+                
+            agents.append(user_agent)
+                
             response = __requests.get(
-                url,
+                **requests_options,
+                url=url,
                 timeout=timeout,
                 allow_redirects=allow_redirects,
                 verify=verify,
-                headers=__headers,
-                **requests_options
+                headers={
+                    **(headers if headers else {}),
+                    'USER-AGENT': user_agent,
+                    'ACCEPT' : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                    'ACCEPT-ENCODING' : 'gzip, deflate, br',
+                    'ACCEPT-LANGUAGE' : 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,km-KH;q=0.6,km;q=0.5,ja-JP;q=0.4,ja;q=0.3',
+                    'REFERER' : 'https://www.google.com/'
+                },
             )
             status_code = response.status_code
             redirected = response.is_redirect
             expired = response.headers.get('Expires')
             expired = expired if expired else (response.headers.get('expires') or False)
             expired_obj = {'expired': expired} if expired else {}
-            tried_obj = {'tried': tried} if tried > 1 else {}
             
             if status_code >= 400 and status_code <= 499:
                 return __sort_dict({
                     'active': False,
                     'checked': False,
                     **expired_obj,
-                    **tried_obj,
                     'error': f'Client error responses: {status_code}',
                     'redirected': redirected,
                     'url': response.url,
-                    'status': status_code
+                    'status': status_code,
+                    'tried': tried,
                 })
                 
             if status_code >= 500 and status_code <= 599:
@@ -304,11 +332,11 @@ def view_page(
                     'active': False,
                     'checked': False,
                     **expired_obj,
-                    **tried_obj,
                     'error': f'Server error responses: {status_code}',
                     'redirected': redirected,
                     'url': response.url,
-                    'status': status_code
+                    'status': status_code,
+                    'tried': tried,
                 })
     
             html = response.content
@@ -340,21 +368,32 @@ def view_page(
                     show_content,
                 ),
                 **expired_obj,
-                **tried_obj,
                 'redirected': redirected,
                 'url': response.url,
-                'status': status_code
+                'status': status_code,
+                'tried': tried,
             })
 
-        except Exception as error:
-            if tried >= tries:
-                return __sort_dict({
-                    'active': None,
-                    'checked': False,
-                    'error': error,
-                    'redirected': False,
-                    'url': url,
-                    'tried': tries
-                })
+        except Exception as error:                    
+            if type(error) == __requests.exceptions.ConnectionError:
+                if tried >= tries_reject:
+                    return __sort_dict({
+                        'active': None,
+                        'checked': False,
+                        'error': error,
+                        'redirected': False,
+                        'url': url,
+                        'tried': tried
+                    })
+                __time.sleep(sleep)
                 
-            __time.sleep(sleep)
+            else :
+                if tried >= tries_timeout:
+                    return __sort_dict({
+                        'active': None,
+                        'checked': False,
+                        'error': error,
+                        'redirected': False,
+                        'url': url,
+                        'tried': tried
+                    })
