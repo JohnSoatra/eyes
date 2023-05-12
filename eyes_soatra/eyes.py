@@ -1,14 +1,14 @@
 #!python3
-from eyes_soatra.depends.depends_404 import depends as __depends_404
 from eyes_soatra.depends.depends_no_data import depends as __depends_no_data
+from eyes_soatra.depends.depends_404 import depends as __depends_404
 from eyes_soatra.needs.user_agents import User_Agents as __User_Agents
 from translate import Translator as __Translator
 from requests_html import HTML as __HTML
-import requests as __requests
 import jellyfish as __jellyfish
-import re as __re
+import requests as __requests
+import random as __random
 import time as __time
-import random
+import re as __re
 
 # Suppress only the single warning from urllib3 needed.
 __requests.packages.urllib3.disable_warnings()
@@ -86,7 +86,6 @@ def __highlighter(
         
         if len(header) >= __header_min_length:
             header_texts.append(header)
-        # for header in header_list:
     
     for xpath in __paragraph_xpaths + (paragraph_xpath if type(paragraph_xpath) == list else []):
         paragraph_list = html.xpath(f'({xpath})//text()')
@@ -159,9 +158,6 @@ def __bad_page(
                     
                     if len(token_header) >= __header_min_length:
                         s1 = __jellyfish.jaro_similarity(depend, token_header)
-                        # s2 = __jellyfish.jaro_winkler_similarity(depend, token_header)
-                        
-                        # points = (s1 + s2) / 2
                         points = s1
                         
                         if points > header_high_point:
@@ -203,9 +199,6 @@ def __bad_page(
                     
                     if len(token_paragraph) >= __paragraph_min_length:
                         s1 = __jellyfish.jaro_similarity(depend, token_paragraph)
-                        # s2 = __jellyfish.jaro_winkler_similarity(depend, token_paragraph)
-                        
-                        # points = (s1 + s2) / 2
                         points = s1
                         
                         if points > paragraph_high_point:
@@ -276,10 +269,10 @@ def view_page(
     while True:
         try:
             tried += 1
-            user_agent = random.choice(__User_Agents)
+            user_agent = __random.choice(__User_Agents)
             
             while user_agent in agents:
-                user_agent = random.choice(__User_Agents)
+                user_agent = __random.choice(__User_Agents)
                 
             agents.append(user_agent)
                 
