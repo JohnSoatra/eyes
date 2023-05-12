@@ -357,7 +357,10 @@ def view_page(
             })
 
         except Exception as error:                    
-            if type(error) == __requests.exceptions.ConnectionError:
+            if (
+                type(error) == __requests.exceptions.ConnectionError or
+                type(error) == __requests.exceptions.SSLError
+            ):
                 if tried >= tries_reject:
                     return __sort_dict({
                         'active': None,
