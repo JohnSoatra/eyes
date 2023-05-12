@@ -111,7 +111,6 @@ def __highlighter(
             break
         # for content in content_list:
             
-
     return {
         'headers': header_texts,
         'paragraphs': paragraph_texts,
@@ -241,14 +240,14 @@ def __bad_page(
 def view_page(
     url,
     lang='ja',
-    sleep=2,
-    timeout=20,
+    timeout=15,
     verify=False,
     headers=None,
     depends=None,
     separator=None,
-    tries_reject=50,
+    sleep_reject=2,
     tries_timeout=3,
+    tries_reject=25,
     header_xpath=None,
     paragraph_xpath=None,
     content_xpath=None,
@@ -365,19 +364,19 @@ def view_page(
                     return __sort_dict({
                         'active': None,
                         'checked': False,
-                        'error': error,
+                        'error': f'{error.__class__.__name__}: {error}',
                         'redirected': False,
                         'url': url,
                         'tried': tried
                     })
-                __time.sleep(sleep)
+                __time.sleep(sleep_reject)
                 
             else :
                 if tried >= tries_timeout:
                     return __sort_dict({
                         'active': None,
                         'checked': False,
-                        'error': error,
+                        'error': f'{error.__class__.__name__}: {error}',
                         'redirected': False,
                         'url': url,
                         'tried': tried
