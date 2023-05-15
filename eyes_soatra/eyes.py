@@ -27,7 +27,26 @@ __container = 'self::div or self::span or self::table'
 __header_xpaths = [
     '//title',
     '//h1[self::*//text() and last()=1]',
-    '(//h2[self::*//text() and last()=1])[1]'
+    '//h2[self::*//text() and last()=1]'
+]
+__header_xpaths_all = [
+    '//title',
+    '//h1',
+    '//h2',
+    '//h3',
+    '//h4',
+    '//h5',
+    '//h6',
+    '//p',
+    '//a',
+    '//button',
+    
+    '//span',
+    '//div',
+    
+    '//li',
+    '//dt',
+    '//dd'
 ]
 __paragraph_xpaths = [
     '//p[@class="no_data"]',
@@ -58,13 +77,15 @@ def __get_highlight(
     header_xpath,
     paragraph_xpath,
     content_xpath,
+    allow_all_tags,
 ):
     html = __HTML(html=html)
     highlight = __highlighter(
         html,
         header_xpath,
         paragraph_xpath,
-        content_xpath
+        content_xpath,
+        allow_all_tags,
     )
     
     return highlight
@@ -74,12 +95,13 @@ def __highlighter(
     header_xpath,
     paragraph_xpath,
     content_xpath,
+    allow_all_tags,
 ):
     header_texts = []
     paragraph_texts = []
     content_texts = []
     
-    for xpath in __header_xpaths + (header_xpath if type(header_xpath) == list else []):
+    for xpath in (__header_xpaths_all if allow_all_tags else __header_xpaths) + (header_xpath if type(header_xpath) == list else []):
         header_list = html.xpath(f'({xpath})//text()')
         header = ' '.join(header_list)
         header = __strip(header)
@@ -252,6 +274,7 @@ def view_page(
     paragraph_xpath=None,
     content_xpath=None,
     allow_redirects=True,
+    allow_all_header_tags=True,
     header_min_point=0.8,
     paragraph_min_point=0.85,
     
@@ -326,6 +349,7 @@ def view_page(
                 header_xpath,
                 paragraph_xpath,
                 content_xpath,
+                allow_all_header_tags
             )
             
             if not (lang == 'ja' or lang == 'en'):
