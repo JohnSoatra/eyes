@@ -5,7 +5,7 @@ from eyes_soatra.constant.user.user_agents import User_Agents as __User_Agents
 from eyes_soatra.constant.libs.requests import requests as __requests
 from eyes_soatra.constant.vars import all_header_xpaths as __header_xpaths_all
 from eyes_soatra.funcs.utils.dict import sort_dict as __sort_dict
-from eyes_soatra.funcs.utils.string import strip as __strip
+from eyes_soatra.funcs.utils.string import strip_space as __strip_space
 
 from translate import Translator as __Translator
 from requests_html import HTML as __HTML
@@ -20,6 +20,7 @@ import re as __re
 __separator = '\||-|:'
 __header_min_length = 3
 __paragraph_min_length = 7
+__content_min_length = 1
 __container = 'self::div or self::span or self::table'
 __header_xpaths = [
     '//title',
@@ -36,70 +37,53 @@ __content_xpaths = [
     '//h1[self::*//text()]/following-sibling::*|//h1[self::*//text()]/following-sibling::*//*|//*[self::*//h1[self::*//text()] and self::*/*[last()=1]]/following-sibling::*[1]//*'
 ]
 
-def __get_highlight(
-    html,
-    header_xpath,
-    paragraph_xpath,
-    content_xpath,
-    allow_all_tags,
-):
-    html = __HTML(html=html)
-    highlight = __highlighter(
-        html,
-        header_xpath,
-        paragraph_xpath,
-        content_xpath,
-        allow_all_tags,
-    )
-    
-    return highlight
-
 def __highlighter(
     html,
     header_xpath,
     paragraph_xpath,
     content_xpath,
     allow_all_tags,
+    separator
 ):
     header_texts = []
     paragraph_texts = []
     content_texts = []
+    separator = __separator + (separator if separator else '')
     
     for xpath in (__header_xpaths_all if allow_all_tags else __header_xpaths) + (header_xpath if type(header_xpath) == list else []):
         header_list = html.xpath(f'({xpath})//text()')
         
         for header in header_list:
-            header = __strip(header)
-            
-            if len(header) >= __header_min_length:
-                header_texts.append(header)
+            for token in __re.split(separator, header):
+                token = __strip_space(token)
+                
+                if len(token) >= __header_min_length:
+                    header_texts.append(token)
+
+        # for paragraph in header_list:
     
     for xpath in __paragraph_xpaths + (paragraph_xpath if type(paragraph_xpath) == list else []):
         paragraph_list = html.xpath(f'({xpath})//text()')
         
         for paragraph in paragraph_list:
-            paragraph = __strip(paragraph)
-            
-            if len(paragraph) >= __paragraph_min_length:
-                paragraph_texts.append(paragraph)
+            for token in __re.split(separator, paragraph):
+                token = __strip_space(token)
 
-            if len(paragraph_texts):
-                break
-            
+                if len(token) >= __paragraph_min_length:
+                    paragraph_texts.append(token)
+
         # for paragraph in paragraph_list:
     
     for xpath in __content_xpaths + (content_xpath if type(content_xpath) == list else []):
         content_list = html.xpath(f'({xpath})//text()')
         
         for content in content_list:
-            content = __strip(content)
-            
-            if len(content) > 0:
-                content_texts.append(content)
+            for token in __re.split(separator, content):
+                token = __strip_space(token)
+                
+                if len(token) >= __content_min_length:
+                    content_texts.append(token)
 
-            if len(content_texts):
-                break
-            
         # for content in content_list:
             
     return {
@@ -110,11 +94,9 @@ def __highlighter(
 
 def __bad_page(
     highlight,
-    separator,
     depends,
     header_min_point,
     paragraph_min_point,
-    
     show_highlight,
     show_header,
     show_paragraph,
@@ -139,31 +121,21 @@ def __bad_page(
     if len(headers):
         header_similar = ''
         header_keyword = ''
-        broke = False
         
         for depend in __depends_404 + (depends if type(depends) == list else []):
-            for header in headers:                
-                for token_header in __re.split(__separator + (separator if separator else ''), header):
-                    token_header = __strip(token_header)
+            for token in headers:                
+                point = __jellyfish.jaro_similarity(depend, token)
+                
+                if point > header_high_point:
+                    header_high_point = point
+                    header_similar = depend
+                    header_keyword = token
                     
-                    if len(token_header) >= __header_min_length:
-                        s1 = __jellyfish.jaro_similarity(depend, token_header)
-                        points = s1
-                        
-                        if points > header_high_point:
-                            header_high_point = points
-                            header_similar = depend
-                            header_keyword = token_header
-                            
-                        if points >= header_min_point:
-                            result = {
-                                **result,
-                                'active': False,
-                            }
-                            
-                            broke = True
-                            break
-                if broke:
+                if point >= header_min_point:
+                    result = {
+                        **result,
+                        'active': False,
+                    }
                     break
                 
         if header_high_point > 0 and show_header:
@@ -180,31 +152,21 @@ def __bad_page(
     if len(paragraphs):
         paragraph_similar = ''
         paragraph_keyword = ''
-        broke = False
         
         for depend in __depends_no_data + (depends if type(depends) == list else []):
-            for paragraph in paragraphs:
-                for token_paragraph in __re.split(__separator + (separator if separator else ''), paragraph):
-                    token_paragraph = __strip(token_paragraph)
+            for token in paragraphs:
+                point = __jellyfish.jaro_similarity(depend, token)
+                
+                if point > paragraph_high_point:
+                    paragraph_high_point = point
+                    paragraph_similar = depend
+                    paragraph_keyword = token
                     
-                    if len(token_paragraph) >= __paragraph_min_length:
-                        s1 = __jellyfish.jaro_similarity(depend, token_paragraph)
-                        points = s1
-                        
-                        if points > paragraph_high_point:
-                            paragraph_high_point = points
-                            paragraph_similar = depend
-                            paragraph_keyword = token_paragraph
-                            
-                        if points >= paragraph_min_point:
-                            result = {
-                                **result,
-                                'informed': True,
-                            }
-                            
-                            broke = True
-                            break
-                if broke:
+                if point >= paragraph_min_point:
+                    result = {
+                        **result,
+                        'informed': True,
+                    }
                     break
                 
         if paragraph_high_point > 0 and show_paragraph:
@@ -222,7 +184,6 @@ def __bad_page(
         result = {
             **result,
             'blank': True,
-            'content': contents
         }
         
     return result
@@ -239,6 +200,7 @@ def view_page(
     sleep_reject=2,
     tries_timeout=3,
     tries_reject=25,
+    tries_forward=10,
     header_xpath=None,
     paragraph_xpath=None,
     content_xpath=None,
@@ -256,6 +218,7 @@ def view_page(
 ):
     tried = 0
     agents = []
+    redirected_forward = False
     
     while True:
         try:
@@ -283,7 +246,7 @@ def view_page(
                 },
             )
             status_code = response.status_code
-            redirected = response.is_redirect
+            redirected = redirected_forward if redirected_forward else response.is_redirect
             expired = response.headers.get('Expires')
             expired = expired if expired else (response.headers.get('expires') or False)
             expired_obj = {'expired': expired} if expired else {}
@@ -312,52 +275,43 @@ def view_page(
                     'tried': tried,
                 })
 
-            html = response.content
-            url_refresh = __HTML(html=html).xpath("//meta[translate(@http-equiv,'REFSH','refsh')='refresh']/@content")
+            html = __HTML(html=response.content)
             
-            if len(url_refresh):
-                url_refresh = url_refresh[0]
-                slices = url_refresh.split(';')
+            if allow_redirects:
+                meta_refresh = html.xpath("//meta[translate(@http-equiv,'REFSH','refsh')='refresh']/@content")
                 
-                if len(slices) > 1:
-                    url_refresh = slices[1]
-                    
-                    if url_refresh.lower().startswith('url='):
-                        url_refresh = url_refresh[4:]
-                    
-                return view_page(
-                    url=url_refresh,
-                    lang=lang,
-                    timeout=timeout,
-                    verify=verify,
-                    headers=headers,
-                    depends=depends,
-                    separator=separator,
-                    sleep_reject=sleep_reject,
-                    tries_timeout=tries_timeout,
-                    tries_reject=tries_reject,
-                    header_xpath=header_xpath,
-                    paragraph_xpath=paragraph_xpath,
-                    content_xpath=content_xpath,
-                    allow_redirects=allow_redirects,
-                    allow_all_header_tags=allow_all_header_tags,
-                    header_min_point=header_min_point,
-                    paragraph_min_point=paragraph_min_point,
-                    
-                    show_highlight=show_highlight,
-                    show_header=show_header,
-                    show_paragraph=show_paragraph,
-                    show_content=show_content,
-                    
-                    **requests_options
-                )
+                if len(meta_refresh):
+                    if tried < tries_forward:
+                        content_refresh = meta_refresh[0]
+                        content_slices = content_refresh.split(';')
+                        
+                        if len(content_slices) > 1:
+                            url_refresh = content_slices[1]
+                            
+                            if url_refresh.lower().startswith('url='):
+                                url_refresh = url_refresh[4:]
+                                
+                            redirected_forward = True
+                            url = url_refresh
+                            continue
 
-            highlight = __get_highlight(
+                    else:
+                        return __sort_dict({
+                            'active': None,
+                            'checked': False,
+                            'error': f'Out of forwarding tries.',
+                            'redirected': True,
+                            'url': url,
+                            'tried': tried
+                        })
+
+            highlight = __highlighter(
                 html,
                 header_xpath,
                 paragraph_xpath,
                 content_xpath,
-                allow_all_header_tags
+                allow_all_header_tags,
+                separator
             )
             
             if not (lang == 'ja' or lang == 'en'):
@@ -370,7 +324,6 @@ def view_page(
             return __sort_dict({
                 **__bad_page(
                     highlight,
-                    separator,
                     depends,
                     header_min_point,
                     paragraph_min_point,
@@ -387,7 +340,7 @@ def view_page(
                 'tried': tried,
             })
 
-        except Exception as error:                    
+        except Exception as error:
             if (
                 type(error) == __requests.exceptions.ConnectionError or
                 type(error) == __requests.exceptions.SSLError

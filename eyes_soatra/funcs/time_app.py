@@ -5,7 +5,7 @@ from eyes_soatra.constant.depends.app_date.end import depends as __depends_end
 from eyes_soatra.constant.user.user_agents import User_Agents as __User_Agents
 from eyes_soatra.constant.vars import all_header_xpaths as __header_xpath
 from eyes_soatra.funcs.utils.dict import sort_dict as __sort_dict
-from eyes_soatra.funcs.utils.string import strip as __strip
+from eyes_soatra.funcs.utils.string import strip_space as __strip_space
 from eyes_soatra.constant.libs.requests import requests as __requests
 
 from translate import Translator as __Translator
@@ -18,67 +18,67 @@ import re as __re
 
 __separator = '\||-|:|\s+'
 __header_min_length = 4
+__date_max_length = 10
+__date_last_words = ('まで', '以内', '。')
+__date_more_signs = ('～')
 
-def __highlighter(html, xpath,):
-    texts = []
-    
-    for xpath in (__header_xpath + (xpath if type(xpath) == list else [])):
-        text_list = html.xpath(f'({xpath})//text()')
-        
-        for text in text_list:
-            text = __strip(text)
-            
-            if len(text) >= __header_min_length:
-                texts.append(text)
+# period 期間, 以内, 随時
 
-    return texts
+def __sort_dict(dict):
+    return dict
 
 def __check_each(
     highlight,
     depends,
     min_point,
-    separator,
 ):
-    temp_point = 0
-    temp_depend = None
-    temp_keyword = None
+    result = {}
+    point_temp = 0
     
     for token in highlight:
-        for each_token in __re.split(__separator + (separator if separator else ''), token):
-            if len(each_token) >= __header_min_length:
-                for depend in depends:
-                    point = __jellyfish.jaro_similarity(depend, each_token)
+        if len(token) >= __header_min_length:
+            for depend in depends:
+                point = __jellyfish.jaro_similarity(depend, token)
+                
+                if point > point_temp:
+                    point_temp = point
+                    
+                    result['keyword'] = token
+                    result['similar-to'] = depend
+                    result['point'] = round(point, 2)
                     
                     if point >= min_point:
-                        return {
-                            'ticked': True,
-                            'keyword': each_token,
-                            'similar-to': depend,
-                            'point': round(point, 2)
-                        }
-                        
-                    if point > temp_point:
-                        temp_point = point
-                        temp_depend = depend
-                        temp_keyword = each_token
+                        result['ticked'] = True
 
-    return {
-        'keyword': temp_keyword,
-        'similar-to': temp_depend,
-        'point': round(temp_point, 2)
-    }
+    return result
 
-def __wanted_page(
+def __highlighter(
+    html,
+    xpath,
+    separator
+):
+    texts = []
+    separator = __separator + (separator if separator else '')
+    
+    for xpath in (__header_xpath + (xpath if type(xpath) == list else [])):
+        text_list = html.xpath(f'({xpath})//text()')
+        
+        for text in text_list:
+            for token in __re.split(separator, text):
+                if token:
+                    texts.append(token)
+
+    return texts
+
+def __detail_page(
     highlight,
     min_point,
     depends_end,
     depends_start,
     depends_period,
-    separator
+    show_all_detail
 ):
-    result = {
-        'highlight': highlight
-    }
+    result = {}
     depends = {
         'app-start': (__depends_start + (depends_start if type(depends_start) == list else [])),
         'app-end': (__depends_end + (depends_end if type(depends_end) == list else [])),
@@ -89,13 +89,54 @@ def __wanted_page(
         checked_result = __check_each(
             highlight,
             depends[key],
-            min_point,
-            separator
+            min_point
         )
         
-        if checked_result:
+        if show_all_detail:
             result[key] = checked_result
+
+        elif 'ticked' in checked_result:
+            result[key] = checked_result
+
+    return result
+
+def __last_index(keyword, highlight):
+    index = 0
+
+    for i in range(0, len(highlight)):
+        if highlight[i] == keyword:
+            index = i
+            
+    return index
+
+def __get_time(detail, highlight):
+    result = {}
+    
+    for key in detail:
+        apt = detail[key]
         
+        if 'ticked' in apt:
+            result[key] = ''
+            index = __last_index(apt['keyword'], highlight)
+            
+            for i in range(index + 1, len(highlight)):
+                string = highlight[i]
+                
+                if string.endswith(__date_more_signs):
+                    result[key] += string
+                    continue
+
+                else:
+                    result[key] += f' {string}'
+                
+                if (
+                    string.endswith(__date_last_words) or
+                    len(result[key]) >= __date_max_length
+                ):
+                    break
+            
+            result[key] = __strip_space(result[key])
+
     return result
 
 # ----------- public function
@@ -107,19 +148,24 @@ def time_app(
     verify=False,
     headers=None,
     separator=None,
-    sleep_reject=2,
+    sleep_time=2,
     tries_timeout=3,
     tries_reject=25,
-    allow_redirects=True,
+    tries_forward=10,
     min_point=0.85,
     depends_end=None,
     depends_start=None,
     depends_period=None,
+    allow_redirects=True,
+    show_detail=False,
+    show_all_detail=False,
+    show_highlight=False,
     
     **requests_options
 ):
     tried = 0
     agents = []
+    redirected_forward = False
     
     while True:
         try:
@@ -147,7 +193,7 @@ def time_app(
                 },
             )
             status_code = response.status_code
-            redirected = response.is_redirect
+            redirected = redirected_forward if redirected_forward else response.is_redirect
             
             if status_code >= 400 and status_code <= 499:
                 return __sort_dict({
@@ -166,8 +212,40 @@ def time_app(
                     'url': response.url,
                     'tried': tried,
                 })
+            
+            html = __HTML(html=response.content)
+            
+            if allow_redirects:
+                meta_refresh = html.xpath("//meta[translate(@http-equiv,'REFSH','refsh')='refresh']/@content")
                 
-            highlight = __highlighter(__HTML(html=response.content), xpath)
+                if len(meta_refresh):
+                    if tried < tries_forward:
+                        content_refresh = meta_refresh[0]
+                        content_slices = content_refresh.split(';')
+                        
+                        if len(content_slices) > 1:
+                            url_refresh = content_slices[1]
+                            
+                            if url_refresh.lower().startswith('url='):
+                                url_refresh = url_refresh[4:]
+                                
+                            redirected_forward = True
+                            url = url_refresh
+                            continue
+
+                    else:
+                        return __sort_dict({
+                            'error': f'Out of forwarding tries.',
+                            'redirected': True,
+                            'url': url,
+                            'tried': tried
+                        })
+            
+            highlight = __highlighter(
+                html,
+                xpath,
+                separator
+            )
             
             if not (lang == 'ja' or lang == 'en'):
                 translate = __Translator(from_lang=lang, to_lang='en')
@@ -175,19 +253,27 @@ def time_app(
                 for i in range(0, len(highlight)):
                     highlight[i] = translate.translate(highlight[i])
             
+            detail = __detail_page(
+                highlight,
+                min_point,
+                depends_end,
+                depends_start,
+                depends_period,
+                show_all_detail
+            )
+            time_result = __get_time(
+                detail,
+                highlight
+            )
+            
             return __sort_dict({
-                'status': status_code,
-                'redirected': redirected,
+                **time_result,
                 'url': response.url,
                 'tried': tried,
-                'detail': __wanted_page(
-                    highlight,
-                    min_point,
-                    depends_end,
-                    depends_start,
-                    depends_period,
-                    separator
-                ),
+                'status': status_code,
+                'redirected': redirected,
+                **({'detail': detail} if show_detail else {}),
+                **({'highlight': highlight} if show_highlight else {}),
             })
 
         except Exception as error:                    
@@ -202,7 +288,7 @@ def time_app(
                         'tried': tried
                     })
                     
-                __time.sleep(sleep_reject)
+                __time.sleep(sleep_time)
                 
             else :
                 if tried >= tries_timeout:
