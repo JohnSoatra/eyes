@@ -4,7 +4,6 @@ from eyes_soatra.constant.depends.view.not_found import depends as __depends_404
 from eyes_soatra.constant.user.user_agents import User_Agents as __User_Agents
 from eyes_soatra.constant.libs.requests import requests as __requests
 from eyes_soatra.constant.vars import header_xpaths as __header_xpaths_all
-from eyes_soatra.funcs.utils.dict import sort_dict as __sort_dict
 from eyes_soatra.funcs.utils.string import strip_space as __strip_space
 
 from translate import Translator as __Translator
@@ -14,7 +13,6 @@ import jellyfish as __jellyfish
 import random as __random
 import time as __time
 import re as __re
-
 
 # private global variables
 __separator = '\||-|:'
@@ -36,6 +34,16 @@ __paragraph_xpaths = [
 __content_xpaths = [
     '//h1[self::*//text()]/following-sibling::*|//h1[self::*//text()]/following-sibling::*//*|//*[self::*//h1[self::*//text()] and self::*/*[last()=1]]/following-sibling::*[1]//*'
 ]
+
+def __translate(lang, highlight):
+    if not (lang == 'ja' or lang == 'en'):
+        translate = __Translator(from_lang=lang, to_lang='en')
+        
+        for key in highlight:
+            for i in range(0, len(highlight[key])):
+                highlight[key][i] = translate.translate(highlight[key][i])
+                
+    return highlight
 
 def __highlighter(
     html,
@@ -261,7 +269,7 @@ def view_page(
             expired_obj = {'expired': expired} if expired else {}
             
             if status_code >= 400 and status_code <= 499:
-                return __sort_dict({
+                return {
                     'active': False,
                     'checked': False,
                     **expired_obj,
@@ -270,10 +278,10 @@ def view_page(
                     'url': response.url,
                     'status': status_code,
                     'tried': tried,
-                })
+                }
                 
             if status_code >= 500 and status_code <= 599:
-                return __sort_dict({
+                return {
                     'active': False,
                     'checked': False,
                     **expired_obj,
@@ -282,7 +290,7 @@ def view_page(
                     'url': response.url,
                     'status': status_code,
                     'tried': tried,
-                })
+                }
 
             html = __html.fromstring(response.content)
             
@@ -295,7 +303,7 @@ def view_page(
                         content_slices = content_refresh.split(';')
                         
                         if len(content_slices) > 1:
-                            url_refresh = content_slices[1]
+                            url_refresh = __strip_space(content_slices[1])
                             
                             if url_refresh.lower().startswith('url='):
                                 url_refresh = url_refresh[4:]
@@ -305,14 +313,14 @@ def view_page(
                             continue
 
                     else:
-                        return __sort_dict({
+                        return {
                             'active': None,
                             'checked': False,
                             'error': f'Out of forwarding tries.',
                             'redirected': True,
                             'url': url,
                             'tried': tried
-                        })
+                        }
 
             highlight = __highlighter(
                 html,
@@ -322,15 +330,9 @@ def view_page(
                 allow_all_header_tags,
                 separator
             )
+            highlight = __translate(lang, highlight)
             
-            if not (lang == 'ja' or lang == 'en'):
-                translate = __Translator(from_lang=lang, to_lang='en')
-                
-                for key in highlight:
-                    for i in range(0, len(highlight[key])):
-                        highlight[key][i] = translate.translate(highlight[key][i])
-            
-            return __sort_dict({
+            return {
                 **__bad_page(
                     highlight,
                     depends,
@@ -347,7 +349,7 @@ def view_page(
                 'url': response.url,
                 'status': status_code,
                 'tried': tried,
-            })
+            }
 
         except Exception as error:
             if (
@@ -355,23 +357,23 @@ def view_page(
                 type(error) == __requests.exceptions.SSLError
             ):
                 if tried >= tries_reject:
-                    return __sort_dict({
+                    return {
                         'active': None,
                         'checked': False,
                         'error': f'{error.__class__.__name__}: {error}',
                         'redirected': False,
                         'url': url,
                         'tried': tried
-                    })
+                    }
                 __time.sleep(sleep_reject)
                 
             else :
                 if tried >= tries_timeout:
-                    return __sort_dict({
+                    return {
                         'active': None,
                         'checked': False,
                         'error': f'{error.__class__.__name__}: {error}',
                         'redirected': False,
                         'url': url,
                         'tried': tried
-                    })
+                    }

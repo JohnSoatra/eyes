@@ -3,9 +3,8 @@ from eyes_soatra.constant.depends.app_date.period import depends as __depends_pe
 from eyes_soatra.constant.depends.app_date.start import depends as __depends_start
 from eyes_soatra.constant.depends.app_date.end import depends as __depends_end
 from eyes_soatra.constant.user.user_agents import User_Agents as __User_Agents
-from eyes_soatra.funcs.utils.dict import sort_dict as __sort_dict
 from eyes_soatra.funcs.utils.list import find as __find
-from eyes_soatra.funcs.utils.list import filter_list as __filter_list
+from eyes_soatra.funcs.utils.list import filter_list as __filter
 from eyes_soatra.funcs.utils.string import strip_space as __strip_space
 from eyes_soatra.constant.libs.requests import requests as __requests
 from eyes_soatra.constant.vars import header_xpaths as __header_xpath
@@ -23,9 +22,6 @@ import re as __re
 __separator = '\||-|:|\s+'
 __header_min_length = 4
 __date_max_length = 60
-
-def __sort_dict(dict):
-    return dict
 
 def __next_word(keyword, highlight):
     result = {
@@ -186,7 +182,7 @@ def __get_time(detail, texts, blogs, give_all):
                 app['keyword'],
                 texts
             )
-            temps = __filter_list(
+            temps = __filter(
                 lambda blog: __find(
                     lambda token: next_word in token,
                     blog
@@ -268,22 +264,22 @@ def time_app(
             redirected = redirected_forward if redirected_forward else response.is_redirect
             
             if status_code >= 400 and status_code <= 499:
-                return __sort_dict({
+                return {
                     'error': f'Client error responses: {status_code}',
                     'status': status_code,
                     'redirected': redirected,
                     'url': response.url,
                     'tried': tried,
-                })
+                }
                 
             if status_code >= 500 and status_code <= 599:
-                return __sort_dict({
+                return {
                     'error': f'Server error responses: {status_code}',
                     'status': status_code,
                     'redirected': redirected,
                     'url': response.url,
                     'tried': tried,
-                })
+                }
             
             html = __html.fromstring(response.content)
             
@@ -296,7 +292,7 @@ def time_app(
                         content_slices = content_refresh.split(';')
                         
                         if len(content_slices) > 1:
-                            url_refresh = content_slices[1]
+                            url_refresh = __strip_space(content_slices[1])
                             
                             if url_refresh.lower().startswith('url='):
                                 url_refresh = url_refresh[4:]
@@ -306,12 +302,12 @@ def time_app(
                             continue
 
                     else:
-                        return __sort_dict({
+                        return {
                             'error': f'Out of forwarding tries.',
                             'redirected': True,
                             'url': url,
                             'tried': tried
-                        })
+                        }
             
             highlight = __highlighter(
                 html,
@@ -337,7 +333,7 @@ def time_app(
                 give_all
             )
             
-            return __sort_dict({
+            return {
                 **time_result,
                 'url': response.url,
                 'tried': tried,
@@ -346,7 +342,7 @@ def time_app(
                 **({'detail': detail} if show_detail else {}),
                 **({'highlight': highlight['texts']} if show_highlight else {}),
                 **({'blogs': highlight['blogs']} if show_blog else {}),
-            })
+            }
 
         except Exception as error:                    
             if (
@@ -354,18 +350,18 @@ def time_app(
                 type(error) == __requests.exceptions.SSLError
             ):
                 if tried >= tries_reject:
-                    return __sort_dict({
+                    return {
                         'error': f'{error.__class__.__name__}: {error}',
                         'url': url,
                         'tried': tried
-                    })
+                    }
                     
                 __time.sleep(sleep_time)
                 
             else :
                 if tried >= tries_timeout:
-                    return __sort_dict({
+                    return {
                         'error': f'{error.__class__.__name__}: {error}',
                         'url': url,
                         'tried': tried
-                    })
+                    }

@@ -8,14 +8,19 @@ header_xpaths = [
     '//h6',
     '//p',
 
-    '//span',
+    '//table',
     '//div',
+    '//span',
 
     '//ul',
     '//dl',
     '//li',
+    '//dt',
+    '//dd',
 
     '//tr',
+    '//th',
+    '//td',
 ]
 
 description_xpath = [
