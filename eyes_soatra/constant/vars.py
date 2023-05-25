@@ -1,4 +1,4 @@
-all_header_xpaths = [
+header_xpaths = [
     '//title',
     '//h1',
     '//h2',
@@ -7,13 +7,26 @@ all_header_xpaths = [
     '//h5',
     '//h6',
     '//p',
-    '//a',
-    '//button',
-    
+
     '//span',
     '//div',
+
+    '//ul',
+    '//dl',
+    '//li',
+
+    '//tr',
+]
+
+description_xpath = [
+    '//p',
+    
+    '//div',
+    '//span',
     
     '//li',
-    '//dt',
-    '//dd'
+    '//dd',
+    
+    '//tr',
+    '//td',
 ]

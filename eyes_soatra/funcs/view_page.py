@@ -3,12 +3,12 @@ from eyes_soatra.constant.depends.view.no_data import depends as __depends_no_da
 from eyes_soatra.constant.depends.view.not_found import depends as __depends_404
 from eyes_soatra.constant.user.user_agents import User_Agents as __User_Agents
 from eyes_soatra.constant.libs.requests import requests as __requests
-from eyes_soatra.constant.vars import all_header_xpaths as __header_xpaths_all
+from eyes_soatra.constant.vars import header_xpaths as __header_xpaths_all
 from eyes_soatra.funcs.utils.dict import sort_dict as __sort_dict
 from eyes_soatra.funcs.utils.string import strip_space as __strip_space
 
 from translate import Translator as __Translator
-from requests_html import HTML as __HTML
+from lxml import html as __html
 
 import jellyfish as __jellyfish
 import random as __random
@@ -51,38 +51,47 @@ def __highlighter(
     separator = __separator + (separator if separator else '')
     
     for xpath in (__header_xpaths_all if allow_all_tags else __header_xpaths) + (header_xpath if type(header_xpath) == list else []):
-        header_list = html.xpath(f'({xpath})//text()')
+        element_list = html.xpath(xpath)
         
-        for header in header_list:
-            for token in __re.split(separator, header):
-                token = __strip_space(token)
-                
-                if len(token) >= __header_min_length:
-                    header_texts.append(token)
+        for element in element_list:
+            header_list = element.xpath('.//text()')
+            
+            for header in header_list:
+                for token in __re.split(separator, header):
+                    token = __strip_space(token)
+                    
+                    if len(token) >= __header_min_length:
+                        header_texts.append(token)
 
         # for paragraph in header_list:
     
     for xpath in __paragraph_xpaths + (paragraph_xpath if type(paragraph_xpath) == list else []):
-        paragraph_list = html.xpath(f'({xpath})//text()')
+        element_list = html.xpath(xpath)
         
-        for paragraph in paragraph_list:
-            for token in __re.split(separator, paragraph):
-                token = __strip_space(token)
+        for element in element_list:
+            paragraph_list = element.xpath('.//text()')
+            
+            for paragraph in paragraph_list:
+                for token in __re.split(separator, paragraph):
+                    token = __strip_space(token)
 
-                if len(token) >= __paragraph_min_length:
-                    paragraph_texts.append(token)
+                    if len(token) >= __paragraph_min_length:
+                        paragraph_texts.append(token)
 
         # for paragraph in paragraph_list:
     
     for xpath in __content_xpaths + (content_xpath if type(content_xpath) == list else []):
-        content_list = html.xpath(f'({xpath})//text()')
+        element_list = html.xpath(xpath)
         
-        for content in content_list:
-            for token in __re.split(separator, content):
-                token = __strip_space(token)
-                
-                if len(token) >= __content_min_length:
-                    content_texts.append(token)
+        for element in element_list:
+            content_list = element.xpath('.//text()')
+            
+            for content in content_list:
+                for token in __re.split(separator, content):
+                    token = __strip_space(token)
+                    
+                    if len(token) >= __content_min_length:
+                        content_texts.append(token)
 
         # for content in content_list:
             
@@ -275,7 +284,7 @@ def view_page(
                     'tried': tried,
                 })
 
-            html = __HTML(html=response.content)
+            html = __html.fromstring(response.content)
             
             if allow_redirects:
                 meta_refresh = html.xpath("//meta[translate(@http-equiv,'REFSH','refsh')='refresh']/@content")

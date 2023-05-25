@@ -3,13 +3,17 @@ from eyes_soatra.constant.depends.app_date.period import depends as __depends_pe
 from eyes_soatra.constant.depends.app_date.start import depends as __depends_start
 from eyes_soatra.constant.depends.app_date.end import depends as __depends_end
 from eyes_soatra.constant.user.user_agents import User_Agents as __User_Agents
-from eyes_soatra.constant.vars import all_header_xpaths as __header_xpath
 from eyes_soatra.funcs.utils.dict import sort_dict as __sort_dict
+from eyes_soatra.funcs.utils.list import find as __find
+from eyes_soatra.funcs.utils.list import filter_list as __filter_list
 from eyes_soatra.funcs.utils.string import strip_space as __strip_space
 from eyes_soatra.constant.libs.requests import requests as __requests
+from eyes_soatra.constant.vars import header_xpaths as __header_xpath
+from eyes_soatra.constant.vars import description_xpath as __description_xpath
 
 from translate import Translator as __Translator
-from requests_html import HTML as __HTML
+from functools import reduce as __reduce
+from lxml import html as __html
 
 import jellyfish as __jellyfish
 import random as __random
@@ -18,14 +22,68 @@ import re as __re
 
 __separator = '\||-|:|\s+'
 __header_min_length = 4
-__date_max_length = 10
-__date_last_words = ('まで', '以内', '。')
-__date_more_signs = ('～')
-
-# period 期間, 以内, 随時
+__date_max_length = 60
 
 def __sort_dict(dict):
     return dict
+
+def __next_word(keyword, highlight):
+    result = {
+        '': 0
+    }
+    
+    for i in range(0, len(highlight)):
+        if highlight[i] == keyword and i < len(highlight) - 1:
+            next_word = highlight[i + 1]
+            
+            if next_word in result:
+                result[next_word] += 1
+                
+            else:
+                result[next_word] = 1
+    
+    max_point = max(list(result.values()))
+    next_word = __find(
+        lambda key: result[key] == max_point,
+        list(result.keys())
+    )
+
+    return next_word
+
+def __smallest(blogs):
+    span = None
+    other = None
+
+    for i in range(0, len(blogs)):
+        temp_blog = blogs[i]
+        tag_blog = temp_blog[0]
+        content_blog = ''.join(temp_blog[1:])
+        
+        if tag_blog == '//span':
+            if span == None or len(content_blog) < len(''.join(span[1:])):
+                span = temp_blog
+                
+        else:
+            if other == None or len(content_blog) < len(''.join(other[1:])):
+                other = blogs[i]
+
+    return other or span
+
+def __translate(lang, highlight):
+    if not (lang == 'ja' or lang == 'en'):
+        translate = __Translator(from_lang=lang, to_lang='en')
+        
+        for key in highlight:
+            if key == 'blogs':
+                for i in range(0, len(highlight[key])):
+                    for j in range(0, len(highlight[key][i][1:])):
+                        highlight[key][i][j] = translate.translate(highlight[key][i][j])
+
+            elif key == 'texts':
+                for i in range(0, len(highlight[key])):
+                    highlight[key][i] = translate.translate(highlight[key][i])
+    
+    return highlight
 
 def __check_each(
     highlight,
@@ -57,18 +115,30 @@ def __highlighter(
     xpath,
     separator
 ):
+    blogs = []
     texts = []
     separator = __separator + (separator if separator else '')
     
     for xpath in (__header_xpath + (xpath if type(xpath) == list else [])):
-        text_list = html.xpath(f'({xpath})//text()')
+        element_list = html.xpath(xpath)
         
-        for text in text_list:
-            for token in __re.split(separator, text):
-                if token:
-                    texts.append(token)
+        for element in element_list:
+            text_list = element.xpath('.//text()')
+            blog = []
 
-    return texts
+            for text in text_list:
+                for token in __re.split(separator, text):
+                    if token:
+                        texts.append(token)
+                        blog.append(token)
+
+            if blog and (xpath in __description_xpath):
+                blogs.append([xpath, *blog])
+
+    return {
+        'blogs': blogs,
+        'texts': texts
+    }
 
 def __detail_page(
     highlight,
@@ -100,43 +170,43 @@ def __detail_page(
 
     return result
 
-def __last_index(keyword, highlight):
-    index = 0
-
-    for i in range(0, len(highlight)):
-        if highlight[i] == keyword:
-            index = i
-            
-    return index
-
-def __get_time(detail, highlight):
+def __get_time(detail, texts, blogs, give_all):
     result = {}
+    has_period = 'app-period' in detail and 'ticked' in detail['app-period']
     
     for key in detail:
-        apt = detail[key]
+        if not give_all and has_period:
+            if key == 'app-start' or key == 'app-end':
+                continue
+            
+        app = detail[key]
         
-        if 'ticked' in apt:
-            result[key] = ''
-            index = __last_index(apt['keyword'], highlight)
+        if 'ticked' in app:
+            next_word = __next_word(
+                app['keyword'],
+                texts
+            )
+            temps = __filter_list(
+                lambda blog: __find(
+                    lambda token: next_word in token,
+                    blog
+                ),
+                blogs
+            )
+            temp = __smallest(temps)
+            temp = __reduce(
+                lambda str1, str2: f'{str1} {str2}' if next_word in str1 else str2,
+                temp
+            )
+            temp = __strip_space(temp)
+            result[key] = temp[:__date_max_length]
             
-            for i in range(index + 1, len(highlight)):
-                string = highlight[i]
-                
-                if string.endswith(__date_more_signs):
-                    result[key] += string
-                    continue
-
-                else:
-                    result[key] += f' {string}'
-                
-                if (
-                    string.endswith(__date_last_words) or
-                    len(result[key]) >= __date_max_length
-                ):
+            for char in temp[__date_max_length:]:
+                if __re.search('\s', char):
                     break
-            
-            result[key] = __strip_space(result[key])
-
+                
+                result[key] += char
+    
     return result
 
 # ----------- public function
@@ -160,6 +230,8 @@ def time_app(
     show_detail=False,
     show_all_detail=False,
     show_highlight=False,
+    show_blog=False,
+    give_all=False,
     
     **requests_options
 ):
@@ -213,7 +285,7 @@ def time_app(
                     'tried': tried,
                 })
             
-            html = __HTML(html=response.content)
+            html = __html.fromstring(response.content)
             
             if allow_redirects:
                 meta_refresh = html.xpath("//meta[translate(@http-equiv,'REFSH','refsh')='refresh']/@content")
@@ -246,15 +318,12 @@ def time_app(
                 xpath,
                 separator
             )
-            
-            if not (lang == 'ja' or lang == 'en'):
-                translate = __Translator(from_lang=lang, to_lang='en')
-                
-                for i in range(0, len(highlight)):
-                    highlight[i] = translate.translate(highlight[i])
-            
+            highlight = __translate(
+                lang,
+                highlight
+            )
             detail = __detail_page(
-                highlight,
+                highlight['texts'],
                 min_point,
                 depends_end,
                 depends_start,
@@ -263,7 +332,9 @@ def time_app(
             )
             time_result = __get_time(
                 detail,
-                highlight
+                highlight['texts'],
+                highlight['blogs'],
+                give_all
             )
             
             return __sort_dict({
@@ -273,7 +344,8 @@ def time_app(
                 'status': status_code,
                 'redirected': redirected,
                 **({'detail': detail} if show_detail else {}),
-                **({'highlight': highlight} if show_highlight else {}),
+                **({'highlight': highlight['texts']} if show_highlight else {}),
+                **({'blogs': highlight['blogs']} if show_blog else {}),
             })
 
         except Exception as error:                    
