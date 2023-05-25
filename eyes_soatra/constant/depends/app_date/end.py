@@ -12,12 +12,3 @@ depends = [
     "申込期限",
     "申請期日"
 ]
-
-if __name__ == '__main__':
-    length = len(depends[0])
-    
-    for each in depends:
-        if length > len(each):
-            length = len(each)
-    
-    print(length)
