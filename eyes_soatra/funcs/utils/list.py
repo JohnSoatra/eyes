@@ -8,3 +8,6 @@ def filter_list(check, items):
 
 def reduce(check, giveback, items):
     return __reduce(lambda a, b: giveback(a, b) if check(a) else b, items)
+
+def map_list(work, items):
+    return list(map(work, items))

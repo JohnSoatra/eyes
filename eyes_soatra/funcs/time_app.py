@@ -2,139 +2,360 @@
 from eyes_soatra.constant.depends.app_date.period import depends as __depends_period
 from eyes_soatra.constant.depends.app_date.start import depends as __depends_start
 from eyes_soatra.constant.depends.app_date.end import depends as __depends_end
+from eyes_soatra.constant.depends.app_date.formats.period import formats as __formats_period
+from eyes_soatra.constant.depends.app_date.formats.start import formats as __formats_start
+from eyes_soatra.constant.depends.app_date.formats.end import formats as __formats_end
 from eyes_soatra.constant.user.user_agents import User_Agents as __User_Agents
 from eyes_soatra.funcs.utils.list import find as __find
+from eyes_soatra.funcs.utils.list import map_list as __map_list
 from eyes_soatra.funcs.utils.list import filter_list as __filter
 from eyes_soatra.funcs.utils.string import strip_space as __strip_space
+from eyes_soatra.funcs.utils.string import symbol as __symbol_all
+from eyes_soatra.funcs.utils.string import xpath_tag as __xpath_tag
 from eyes_soatra.constant.libs.requests import requests as __requests
 from eyes_soatra.constant.vars import header_xpaths as __header_xpath
 from eyes_soatra.constant.vars import description_xpath as __description_xpath
+from eyes_soatra.constant.vars import full_stops as __full_stops
+from eyes_soatra.constant.vars import remove_tags as __remove_tags
+from eyes_soatra.constant.vars import priority_tag as __priority_tags
+from eyes_soatra.constant.vars import priority_header_tag as __priority_header_tags
+from eyes_soatra.constant import labels
 
 from translate import Translator as __Translator
-from functools import reduce as __reduce
 from lxml import html as __html
+from lxml import etree as __etree
 
 import jellyfish as __jellyfish
 import random as __random
 import time as __time
 import re as __re
+import json as __json
 
 __separator = '\||-|:|\s+'
 __header_min_length = 4
 __date_max_length = 60
 
-def __next_word(keyword, highlight):
-    result = {
-        '': 0
+def __highlighter(
+    html,
+    xpath,
+    xpath_desc,
+    separator
+):
+    texts = []
+    blogs = []
+    separator = __separator + (separator if separator else '')
+    
+    xpaths = (__header_xpath + (xpath if type(xpath) == list else []))
+    xpaths = __map_list(lambda each: f'({each})', xpaths)
+    xpath = '|'.join(xpaths)
+    
+    xpaths_desc = (__description_xpath + (xpath_desc if type(xpath_desc) == list else []))
+    tags_desc = __map_list(lambda xpath: __xpath_tag(xpath), xpaths_desc)
+    
+    elements = html.xpath(xpath)
+    index = 0
+
+    for element in elements:
+        tag = element.tag
+        temp_blogs = []
+        text_list = element.xpath('.//text()')
+
+        for text in text_list:
+            for token in __re.split(separator, text):
+                if token and not __symbol_all(token):
+                    texts.append({
+                        'tag': tag,
+                        'token': token
+                    })
+                    temp_blogs.append({
+                        'index': index,
+                        'token': token
+                    })
+                    index += 1
+
+        if temp_blogs and tag in tags_desc:
+            blogs.append({
+                'tag': tag,
+                'blogs': temp_blogs
+            })
+    
+    html_texts = []
+
+    for text in html.xpath('//text()'):
+        for token in __re.split(separator, text):
+            if token and not __symbol_all(token):
+                html_texts.append(token)
+    
+    return {
+        'texts': texts,
+        'blogs': blogs,
+        'html-texts': html_texts
     }
     
-    for i in range(0, len(highlight)):
-        if highlight[i] == keyword and i < len(highlight) - 1:
-            next_word = highlight[i + 1]
-            
-            if next_word in result:
-                result[next_word] += 1
-                
-            else:
-                result[next_word] = 1
+def __type_formats(type):
+    if type == labels.APP_START:
+        return __formats_start
     
-    max_point = max(list(result.values()))
-    next_word = __find(
-        lambda key: result[key] == max_point,
-        list(result.keys())
-    )
-
-    return next_word
-
-def __smallest(blogs):
-    span = None
-    other = None
-
-    for i in range(0, len(blogs)):
-        temp_blog = blogs[i]
-        tag_blog = temp_blog[0]
-        content_blog = ''.join(temp_blog[1:])
+    if type == labels.APP_END:
+        return __formats_end
+    
+    else:
+        return __formats_period
+    
+def __best_point(word, depends):
+    point = 0
+    
+    for depend in depends:
+        temp = __jellyfish.jaro_similarity(word, depend)
         
-        if tag_blog == '//span':
-            if span == None or len(content_blog) < len(''.join(span[1:])):
-                span = temp_blog
-                
-        else:
-            if other == None or len(content_blog) < len(''.join(other[1:])):
-                other = blogs[i]
+        if point < temp:
+            point  = temp
 
-    return other or span
+    return point
+    
+def __next_word(type_app, keyword, highlight):
+    texts = highlight['html-texts']
+    founds = []
+    
+    for i in range(0, len(texts)):
+        if texts[i] == keyword and i < len(texts) - 1:
+            next_word = texts[i + 1]
+            
+            if not next_word in founds:
+                founds.append(next_word)
+
+    if len(founds):
+        formats = __type_formats(type_app)
+        nexts = {
+            'word': founds[0],
+            'point': __best_point(founds[0], formats)
+        }
+        
+        for i in range(1, len(founds)):
+            point = __best_point(founds[i], formats)
+            
+            if point > nexts['point']:
+                nexts = {
+                    'word': founds[i],
+                    'point': point
+                }
+        
+        return nexts['word']
+
+    return None
+
+def __find_priority(founds):
+    for tag in __priority_tags:
+        found = __find(
+            lambda each: each['tag'] == tag,
+            founds
+        )
+        
+        if found:
+            return found
+        
+    priority = founds[0]
+    
+    for i in range(1, len(founds)):
+        if len(priority['token']) > len(founds[i]['token']):
+            priority = founds[i]
+            
+    return priority
+
+def __specific_blog(
+    next_word,
+    keyword,
+    highlight,
+):
+    texts = highlight['texts']
+    texts_tokens = __map_list(lambda each: each['token'], texts)
+    blogs = highlight['blogs']
+    founds = []
+
+    for each_blog in blogs:
+        blogs_inner = each_blog['blogs']
+        tokens = __map_list(lambda each: each['token'], blogs_inner)
+        
+        if next_word in tokens:
+            for index in range(0, len(blogs_inner)):
+                each = blogs_inner[index]
+                
+                if each['token'] == next_word:
+                    preceding = each['index'] - 1
+                    preceding = preceding if preceding >= 0 else 0
+                    
+                    if texts_tokens[preceding] == keyword:
+                        str_token = ' '.join(tokens[index:])
+                        found = __find(
+                            lambda each: each['tag'] == each_blog['tag'],
+                            founds
+                        )
+                        if found:
+                            if len(found['token']) > len(str_token):
+                                found['token'] = str_token
+
+                        else:
+                            founds.append({
+                                'tag': each_blog['tag'],
+                                'token': str_token
+                            })
+    
+    priority = __find_priority(founds)
+    if priority:
+        return priority['token']
+
+    return None
 
 def __translate(lang, highlight):
     if not (lang == 'ja' or lang == 'en'):
         translate = __Translator(from_lang=lang, to_lang='en')
         
-        for key in highlight:
-            if key == 'blogs':
-                for i in range(0, len(highlight[key])):
-                    for j in range(0, len(highlight[key][i][1:])):
-                        highlight[key][i][j] = translate.translate(highlight[key][i][j])
+        highlight['html-texts'] = __map_list(
+            lambda each: translate.translate(each),
+            highlight['html-texts']
+        )
+        highlight['texts'] = __map_list(
+            lambda each: {
+                **each,
+                'token': translate.translate(each['token'])
+            },
+            highlight['texts']
+        )
+        highlight['blogs'] = __map_list(
+            lambda each: {
+                **each,
+                'blogs': __map_list(
+                    lambda each: {
+                        **each,
+                        'token': translate.translate(each['token'])
+                    },
+                    each['blogs']
+                )
+            },
+            highlight['blogs']
+        )
 
-            elif key == 'texts':
-                for i in range(0, len(highlight[key])):
-                    highlight[key][i] = translate.translate(highlight[key][i])
-    
     return highlight
 
+def __header_best(founds):
+    for found in founds:
+        if found['tag'] in __priority_header_tags:
+            return found
+    
+    header = founds[0]
+    
+    for i in range(1, len(founds)):
+        if header['point'] < founds[i]['point']:
+            header = founds[i]
+
+    return header    
+
 def __check_each(
-    highlight,
-    depends,
+    type_app,
     min_point,
+    depends,
+    highlight,
 ):
+    texts = highlight['texts']
     result = {}
     point_temp = 0
-    
-    for token in highlight:
+    founds = []
+
+    for text_obj in texts:
+        token = text_obj['token']
+        
         if len(token) >= __header_min_length:
             for depend in depends:
                 point = __jellyfish.jaro_similarity(depend, token)
                 
                 if point > point_temp:
                     point_temp = point
-                    
                     result['keyword'] = token
                     result['similar-to'] = depend
                     result['point'] = round(point, 2)
-                    
-                    if point >= min_point:
-                        result['ticked'] = True
 
+                if point >= min_point:
+                    founds.append({
+                        'tag': text_obj['tag'],
+                        'keyword': token,
+                        'similar-to': depend,
+                        'point': round(point, 2)
+                    })
+
+    if len(founds):
+        best_header = __header_best(founds)
+        result = {
+            'ticked': True,
+            **result,
+            **best_header,
+            'next-word': __next_word(
+                type_app,
+                best_header['keyword'],
+                highlight
+            )
+        }
+    
     return result
 
-def __highlighter(
-    html,
-    xpath,
-    separator
-):
-    blogs = []
-    texts = []
-    separator = __separator + (separator if separator else '')
+def __table_title(html, keyword, highlight):
+    blogs = highlight['blogs']
     
-    for xpath in (__header_xpath + (xpath if type(xpath) == list else [])):
-        element_list = html.xpath(xpath)
+    for blog in blogs:
+        if (
+            (blog['tag'] == 'th' or blog['tag'] == 'td') and
+            keyword in __map_list(lambda each: each['token'], blog['blogs'])
+        ):
+            for table in html.xpath('//table'):
+                tr1 = table.xpath('./thead/tr[1]')
+                tr1 = tr1 if tr1 else table.xpath('./tbody/tr[1]')
+                tr1 = tr1 if tr1 else table.xpath('./tr[1]')
+                
+                if len(tr1):
+                    tr1 = tr1[0]
+                    if tr1.xpath('./th') and tr1.xpath('./td'):
+                        return None
+                    
+                    ts = tr1.xpath('./*[self::td or self::th]')
+                    position = 0
+
+                    for th in ts:
+                        text = th.text_content()
+                        position += 1
+                        
+                        if __re.sub(r'\s+', '', text) == keyword:
+                            return {
+                                'table': table,
+                                'position': position
+                            }
+
+    return None
+
+def __table_worker(html, keyword, highlight):
+    table_obj = __table_title(html, keyword, highlight)
+    
+    if table_obj:
+        table = table_obj['table']
+        position = table_obj['position']
+        tr_position = 1 if table.xpath(f'./thead') else 2
+        tds = table.xpath(f'./tbody/tr[{tr_position}]/td[position()={position}]')
+        tds = tds if tds else table.xpath(f'./tr[{tr_position}]/td[position()={position}]')
+
+        if len(tds):
+            return __strip_space(tds[0].text_content())
         
-        for element in element_list:
-            text_list = element.xpath('.//text()')
-            blog = []
+    else:
+        for tr in html.xpath('//tr'):
+            tds = tr.xpath('./td')
+            
+            for i in range(0, len(tds)):
+                td = tds[i]
+                
+                if __re.sub(r'\s+', '', td.text_content()) == keyword:
+                    texts = tr.xpath(f'./td[position()>{i+1}]//text()')
+                    
+                    return __strip_space(' '.join(texts))
 
-            for text in text_list:
-                for token in __re.split(separator, text):
-                    if token:
-                        texts.append(token)
-                        blog.append(token)
-
-            if blog and (xpath in __description_xpath):
-                blogs.append([xpath, *blog])
-
-    return {
-        'blogs': blogs,
-        'texts': texts
-    }
+    return None
 
 def __detail_page(
     highlight,
@@ -142,20 +363,22 @@ def __detail_page(
     depends_end,
     depends_start,
     depends_period,
-    show_all_detail
+    show_all_detail,
+    give_all
 ):
     result = {}
     depends = {
-        'app-start': (__depends_start + (depends_start if type(depends_start) == list else [])),
-        'app-end': (__depends_end + (depends_end if type(depends_end) == list else [])),
-        'app-period': (__depends_period + (depends_period if type(depends_period) == list else [])),
+        labels.APP_START: (__depends_start + (depends_start if type(depends_start) == list else [])),
+        labels.APP_END: (__depends_end + (depends_end if type(depends_end) == list else [])),
+        labels.APP_PERIOD: (__depends_period + (depends_period if type(depends_period) == list else [])),
     }
     
     for key in depends:
         checked_result = __check_each(
-            highlight,
+            key,
+            min_point,
             depends[key],
-            min_point
+            highlight,
         )
         
         if show_all_detail:
@@ -163,10 +386,21 @@ def __detail_page(
 
         elif 'ticked' in checked_result:
             result[key] = checked_result
+            
+    if not give_all:
+        if labels.APP_PERIOD in result:
+            for key in [labels.APP_START, labels.APP_END]:
+                if key in result:
+                    result.pop(key)
 
     return result
 
-def __get_time(detail, texts, blogs, give_all):
+def __get_time(
+    html,
+    detail,
+    highlight,
+    give_all
+):
     result = {}
     has_period = 'app-period' in detail and 'ticked' in detail['app-period']
     
@@ -178,31 +412,41 @@ def __get_time(detail, texts, blogs, give_all):
         app = detail[key]
         
         if 'ticked' in app:
-            next_word = __next_word(
-                app['keyword'],
-                texts
+            keyword = app['keyword']
+            text_td = __table_worker(
+                html,
+                keyword,
+                highlight,
             )
-            temps = __filter(
-                lambda blog: __find(
-                    lambda token: next_word in token,
-                    blog
-                ),
-                blogs
-            )
-            temp = __smallest(temps)
-            temp = __reduce(
-                lambda str1, str2: f'{str1} {str2}' if next_word in str1 else str2,
-                temp
-            )
-            temp = __strip_space(temp)
-            result[key] = temp[:__date_max_length]
             
-            for char in temp[__date_max_length:]:
-                if __re.search('\s', char):
-                    break
+            if text_td:
+                result[key] = text_td
                 
-                result[key] += char
-    
+            else:
+                next_word = app['next-word']
+
+                if next_word:
+                    specific = __specific_blog(
+                        next_word,
+                        keyword,
+                        highlight
+                    )
+
+                    if specific:
+                        result[key] = next_word
+                        
+                        for char in specific.removeprefix(next_word):
+                            result[key] += char
+
+                            if (
+                                char in __full_stops or
+                                (
+                                    __re.search('\s', char) and
+                                    len(result[key]) >= __date_max_length
+                                )
+                            ):
+                                break
+
     return result
 
 # ----------- public function
@@ -210,6 +454,7 @@ def time_app(
     url,
     lang='ja',
     xpath=None,
+    xpath_desc=None,
     timeout=15,
     verify=False,
     headers=None,
@@ -223,18 +468,19 @@ def time_app(
     depends_start=None,
     depends_period=None,
     allow_redirects=True,
-    show_detail=False,
+    show_detail=True,
     show_all_detail=False,
-    show_highlight=False,
+    show_texts=False,
     show_blog=False,
     give_all=False,
     
     **requests_options
 ):
+    url = __re.sub(r'\s', '', url)
     tried = 0
     agents = []
     redirected_forward = False
-    
+
     while True:
         try:
             tried += 1
@@ -282,6 +528,7 @@ def time_app(
                 }
             
             html = __html.fromstring(response.content)
+            __etree.strip_elements(html, *__remove_tags)
             
             if allow_redirects:
                 meta_refresh = html.xpath("//meta[translate(@http-equiv,'REFSH','refsh')='refresh']/@content")
@@ -312,6 +559,7 @@ def time_app(
             highlight = __highlighter(
                 html,
                 xpath,
+                xpath_desc,
                 separator
             )
             highlight = __translate(
@@ -319,17 +567,18 @@ def time_app(
                 highlight
             )
             detail = __detail_page(
-                highlight['texts'],
+                highlight,
                 min_point,
                 depends_end,
                 depends_start,
                 depends_period,
-                show_all_detail
+                show_all_detail,
+                give_all
             )
             time_result = __get_time(
+                html,
                 detail,
-                highlight['texts'],
-                highlight['blogs'],
+                highlight,
                 give_all
             )
             
@@ -339,8 +588,8 @@ def time_app(
                 'tried': tried,
                 'status': status_code,
                 'redirected': redirected,
-                **({'detail': detail} if show_detail else {}),
-                **({'highlight': highlight['texts']} if show_highlight else {}),
+                **({'detail': detail} if show_detail and detail else {}),
+                **({'texts': highlight['texts']} if show_texts else {}),
                 **({'blogs': highlight['blogs']} if show_blog else {}),
             }
 

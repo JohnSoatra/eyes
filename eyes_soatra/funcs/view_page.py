@@ -4,10 +4,12 @@ from eyes_soatra.constant.depends.view.not_found import depends as __depends_404
 from eyes_soatra.constant.user.user_agents import User_Agents as __User_Agents
 from eyes_soatra.constant.libs.requests import requests as __requests
 from eyes_soatra.constant.vars import header_xpaths as __header_xpaths_all
+from eyes_soatra.constant.vars import remove_tags as __remove_tags
 from eyes_soatra.funcs.utils.string import strip_space as __strip_space
 
 from translate import Translator as __Translator
 from lxml import html as __html
+from lxml import etree as __etree
 
 import jellyfish as __jellyfish
 import random as __random
@@ -70,8 +72,6 @@ def __highlighter(
                     
                     if len(token) >= __header_min_length:
                         header_texts.append(token)
-
-        # for paragraph in header_list:
     
     for xpath in __paragraph_xpaths + (paragraph_xpath if type(paragraph_xpath) == list else []):
         element_list = html.xpath(xpath)
@@ -85,8 +85,6 @@ def __highlighter(
 
                     if len(token) >= __paragraph_min_length:
                         paragraph_texts.append(token)
-
-        # for paragraph in paragraph_list:
     
     for xpath in __content_xpaths + (content_xpath if type(content_xpath) == list else []):
         element_list = html.xpath(xpath)
@@ -100,8 +98,6 @@ def __highlighter(
                     
                     if len(token) >= __content_min_length:
                         content_texts.append(token)
-
-        # for content in content_list:
             
     return {
         'headers': header_texts,
@@ -133,8 +129,7 @@ def __bad_page(
         'checked': True,
         **({'highlight': highlight} if show_highlight else {})
     }
-    
-    # check active
+
     if len(headers):
         header_similar = ''
         header_keyword = ''
@@ -165,7 +160,6 @@ def __bad_page(
                 }
             }
 
-    # check informed
     if len(paragraphs):
         paragraph_similar = ''
         paragraph_keyword = ''
@@ -195,8 +189,7 @@ def __bad_page(
                     'points': round(paragraph_high_point, 2)
                 }
             }
-    
-    # check blank
+
     if len(contents) == 0 and show_content:
         result = {
             **result,
@@ -233,6 +226,7 @@ def view_page(
     
     **requests_options
 ):
+    url = __re.sub(r'\s', '', url)
     tried = 0
     agents = []
     redirected_forward = False
@@ -293,6 +287,7 @@ def view_page(
                 }
 
             html = __html.fromstring(response.content)
+            __etree.strip_elements(html, *__remove_tags)
             
             if allow_redirects:
                 meta_refresh = html.xpath("//meta[translate(@http-equiv,'REFSH','refsh')='refresh']/@content")

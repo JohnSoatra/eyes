@@ -1,3 +1,5 @@
+from lxml import etree as __etree
+
 header_xpaths = [
     '//title',
     '//h1',
@@ -33,5 +35,42 @@ description_xpath = [
     '//dd',
     
     '//tr',
+    '//th',
     '//td',
 ]
+
+priority_tag = [
+    'p'
+]
+
+priority_header_tag = [
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+]
+
+remove_tags = [
+    __etree.Comment,
+    'script',
+    'link',
+    'style',
+    'button',
+]
+
+full_stops = (
+    '.',
+    '。',
+)
+
+xpath_prefix = (
+    '/',
+    '.'
+)
+
+tag_stop = (
+    '[',
+    ')'
+)
