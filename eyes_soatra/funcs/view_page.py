@@ -282,7 +282,7 @@ def view_page(
             expired = expired if expired else (response.headers.get('expires') or False)
             expired_obj = {'expired': expired} if expired else {}
             current_url = response.url
-            
+
             back_home = __back_home(url, response)
 
             if back_home:
