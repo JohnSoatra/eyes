@@ -201,9 +201,18 @@ def __bad_page(
 def __remove_protocol(url):
     return url.removeprefix('http://').removeprefix('https://')
 
-def __back_home(response: __requests.models.Response):
+def __remove_slash(url):
+    while url.endswith('/'):
+        url = url.removesuffix('/')
+    
+    return url
+
+def __back_home(url, response: __requests.models.Response):
+    if __remove_slash(url) == __remove_slash(response.url):
+        return False
+    
     path = __remove_protocol(response.url)
-    path = path.removesuffix('/')
+    path = __remove_slash(path)
     
     if not '/' in path:
         return True
@@ -274,7 +283,7 @@ def view_page(
             expired_obj = {'expired': expired} if expired else {}
             current_url = response.url
             
-            back_home = __back_home(response)
+            back_home = __back_home(url, response)
 
             if back_home:
                 return {
