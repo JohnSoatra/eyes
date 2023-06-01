@@ -198,6 +198,18 @@ def __bad_page(
         
     return result
 
+def __remove_protocol(url):
+    return url.removeprefix('http://').removeprefix('https://')
+
+def __back_home(response: __requests.models.Response):
+    path = __remove_protocol(response.url)
+    path = path.removesuffix('/')
+    
+    if not '/' in path:
+        return True
+
+    return False
+
 # ------------------------ public function
 def view_page(
     url,
@@ -240,7 +252,6 @@ def view_page(
                 user_agent = __random.choice(__User_Agents)
                 
             agents.append(user_agent)
-                
             response = __requests.get(
                 **requests_options,
                 url=url,
@@ -261,6 +272,21 @@ def view_page(
             expired = response.headers.get('Expires')
             expired = expired if expired else (response.headers.get('expires') or False)
             expired_obj = {'expired': expired} if expired else {}
+            current_url = response.url
+            
+            back_home = __back_home(response)
+
+            if back_home:
+                return {
+                    'active': False,
+                    'checked': False,
+                    **expired_obj,
+                    'error': f'Redirected to Home Page',
+                    'redirected': True,
+                    'url': current_url,
+                    'status': status_code,
+                    'tried': tried,
+                }
             
             if status_code >= 400 and status_code <= 499:
                 return {
@@ -269,7 +295,7 @@ def view_page(
                     **expired_obj,
                     'error': f'Client error responses: {status_code}',
                     'redirected': redirected,
-                    'url': response.url,
+                    'url': current_url,
                     'status': status_code,
                     'tried': tried,
                 }
@@ -281,7 +307,7 @@ def view_page(
                     **expired_obj,
                     'error': f'Server error responses: {status_code}',
                     'redirected': redirected,
-                    'url': response.url,
+                    'url': current_url,
                     'status': status_code,
                     'tried': tried,
                 }
@@ -341,7 +367,7 @@ def view_page(
                 ),
                 **expired_obj,
                 'redirected': redirected,
-                'url': response.url,
+                'url': current_url,
                 'status': status_code,
                 'tried': tried,
             }

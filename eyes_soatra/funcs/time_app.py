@@ -451,7 +451,8 @@ def __get_time(
 
 # ----------- public function
 def time_app(
-    url,
+    url=None,
+    content=None,
     lang='ja',
     xpath=None,
     xpath_desc=None,
@@ -476,7 +477,12 @@ def time_app(
     
     **requests_options
 ):
-    url = __re.sub(r'\s', '', url)
+    if url == None and content == None:
+        raise Exception('Please input one of those: url and content.')
+    
+    if url:
+        url = __re.sub(r'\s', '', url)
+
     tried = 0
     agents = []
     redirected_forward = False
@@ -484,78 +490,88 @@ def time_app(
     while True:
         try:
             tried += 1
-            user_agent = __random.choice(__User_Agents)
             
-            while user_agent in agents:
+            if content:
+                status_code = 200
+                redirected = False
+                current_url = url
+                html = __html.fromstring(content)
+                __etree.strip_elements(html, *__remove_tags)
+                
+            else:
                 user_agent = __random.choice(__User_Agents)
                 
-            agents.append(user_agent)
+                while user_agent in agents:
+                    user_agent = __random.choice(__User_Agents)
+                    
+                agents.append(user_agent)
+                    
+                response = __requests.get(
+                    **requests_options,
+                    url=url,
+                    timeout=timeout,
+                    allow_redirects=allow_redirects,
+                    verify=verify,
+                    headers={
+                        **(headers if headers else {}),
+                        'USER-AGENT': user_agent,
+                        'ACCEPT' : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                        'ACCEPT-ENCODING' : 'gzip, deflate, br',
+                        'ACCEPT-LANGUAGE' : 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,km-KH;q=0.6,km;q=0.5,ja-JP;q=0.4,ja;q=0.3',
+                        'REFERER' : 'https://www.google.com/'
+                    },
+                )
+                status_code = response.status_code
+                redirected = redirected_forward if redirected_forward else response.is_redirect
+                current_url = response.url
                 
-            response = __requests.get(
-                **requests_options,
-                url=url,
-                timeout=timeout,
-                allow_redirects=allow_redirects,
-                verify=verify,
-                headers={
-                    **(headers if headers else {}),
-                    'USER-AGENT': user_agent,
-                    'ACCEPT' : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                    'ACCEPT-ENCODING' : 'gzip, deflate, br',
-                    'ACCEPT-LANGUAGE' : 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,km-KH;q=0.6,km;q=0.5,ja-JP;q=0.4,ja;q=0.3',
-                    'REFERER' : 'https://www.google.com/'
-                },
-            )
-            status_code = response.status_code
-            redirected = redirected_forward if redirected_forward else response.is_redirect
-            
-            if status_code >= 400 and status_code <= 499:
-                return {
-                    'error': f'Client error responses: {status_code}',
-                    'status': status_code,
-                    'redirected': redirected,
-                    'url': response.url,
-                    'tried': tried,
-                }
+                if status_code >= 400 and status_code <= 499:
+                    return {
+                        'error': f'Client error responses: {status_code}',
+                        'status': status_code,
+                        'redirected': redirected,
+                        'url': current_url,
+                        'tried': tried,
+                    }
+                    
+                if status_code >= 500 and status_code <= 599:
+                    return {
+                        'error': f'Server error responses: {status_code}',
+                        'status': status_code,
+                        'redirected': redirected,
+                        'url': current_url,
+                        'tried': tried,
+                    }
                 
-            if status_code >= 500 and status_code <= 599:
-                return {
-                    'error': f'Server error responses: {status_code}',
-                    'status': status_code,
-                    'redirected': redirected,
-                    'url': response.url,
-                    'tried': tried,
-                }
-            
-            html = __html.fromstring(response.content)
-            __etree.strip_elements(html, *__remove_tags)
-            
-            if allow_redirects:
-                meta_refresh = html.xpath("//meta[translate(@http-equiv,'REFSH','refsh')='refresh']/@content")
+                html = __html.fromstring(response.content)
+                __etree.strip_elements(html, *__remove_tags)
                 
-                if len(meta_refresh):
-                    if tried < tries_forward:
-                        content_refresh = meta_refresh[0]
-                        content_slices = content_refresh.split(';')
-                        
-                        if len(content_slices) > 1:
-                            url_refresh = __strip_space(content_slices[1])
+                if allow_redirects:
+                    meta_refresh = html.xpath("//meta[translate(@http-equiv,'REFSH','refsh')='refresh']/@content")
+                    
+                    if len(meta_refresh):
+                        if tried < tries_forward:
+                            content_refresh = meta_refresh[0]
+                            content_slices = content_refresh.split(';')
                             
-                            if url_refresh.lower().startswith('url='):
-                                url_refresh = url_refresh[4:]
+                            if len(content_slices) > 1:
+                                url_refresh = __strip_space(content_slices[1])
                                 
-                            redirected_forward = True
-                            url = url_refresh
-                            continue
+                                if url_refresh.lower().startswith('url='):
+                                    url_refresh = url_refresh[4:]
+                                    
+                                redirected_forward = True
+                                url = url_refresh
+                                continue
 
-                    else:
-                        return {
-                            'error': f'Out of forwarding tries.',
-                            'redirected': True,
-                            'url': url,
-                            'tried': tried
-                        }
-            
+                        else:
+                            return {
+                                'error': f'Out of forwarding tries.',
+                                'redirected': True,
+                                'url': url,
+                                'tried': tried
+                            }
+
             highlight = __highlighter(
                 html,
                 xpath,
@@ -584,7 +600,7 @@ def time_app(
             
             return {
                 **time_result,
-                'url': response.url,
+                'url': current_url,
                 'tried': tried,
                 'status': status_code,
                 'redirected': redirected,
