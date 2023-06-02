@@ -239,8 +239,7 @@ def view_page(
         try:
             tried += 1
             user_agent = __random.choice(__User_Agents)
-            print(url)
-            
+
             while user_agent in agents:
                 user_agent = __random.choice(__User_Agents)
                 
