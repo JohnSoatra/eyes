@@ -5,17 +5,17 @@
 ```
 python install -r requirements.txt
 ```
-### Mac, Linux
+#### Mac, Linux
 ```
 python3 install -r requirements.txt
 ```
 
 ## Second, type
-### Window
+#### Window
 ```
 python setup.py install --user
 ```
-## Mac, Linux
+#### Mac, Linux
 ```
 python3 setup.py install --user
 ```
