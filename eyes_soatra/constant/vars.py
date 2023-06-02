@@ -74,3 +74,8 @@ tag_stop = (
     '[',
     ')'
 )
+
+protocols = (
+    'http://',
+    'https://',
+)
