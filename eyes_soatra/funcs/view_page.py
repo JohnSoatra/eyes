@@ -6,6 +6,10 @@ from eyes_soatra.constant.libs.requests import requests as __requests
 from eyes_soatra.constant.vars import header_xpaths as __header_xpaths_all
 from eyes_soatra.constant.vars import remove_tags as __remove_tags
 from eyes_soatra.funcs.utils.string import strip_space as __strip_space
+from eyes_soatra.funcs.utils.string import back_home as __back_home
+from eyes_soatra.funcs.utils.string import protocol as __protocol
+from eyes_soatra.funcs.utils.string import join_path as __join_path
+from eyes_soatra.funcs.utils.string import get_domain as __get_domain
 
 from translate import Translator as __Translator
 from lxml import html as __html
@@ -198,27 +202,6 @@ def __bad_page(
         
     return result
 
-def __remove_protocol(url):
-    return url.removeprefix('http://').removeprefix('https://')
-
-def __remove_slash(url):
-    while url.endswith('/'):
-        url = url.removesuffix('/')
-    
-    return url
-
-def __back_home(url, response: __requests.models.Response):
-    if __remove_slash(url) == __remove_slash(response.url):
-        return False
-    
-    path = __remove_protocol(response.url)
-    path = __remove_slash(path)
-    
-    if not '/' in path:
-        return True
-
-    return False
-
 # ------------------------ public function
 def view_page(
     url,
@@ -256,6 +239,7 @@ def view_page(
         try:
             tried += 1
             user_agent = __random.choice(__User_Agents)
+            print(url)
             
             while user_agent in agents:
                 user_agent = __random.choice(__User_Agents)
@@ -283,7 +267,10 @@ def view_page(
             expired_obj = {'expired': expired} if expired else {}
             current_url = response.url
 
-            back_home = __back_home(url, response)
+            back_home = __back_home(
+                url,
+                response
+            )
 
             if back_home:
                 return {
@@ -339,7 +326,15 @@ def view_page(
                                 url_refresh = url_refresh[4:]
                                 
                             redirected_forward = True
-                            url = url_refresh
+                            
+                            if __protocol(url_refresh):
+                                url = url_refresh
+
+                            else:
+                                protocol = __protocol(url)
+                                domain = __get_domain(url)
+                                url = __join_path(protocol, domain, url_refresh)
+
                             continue
 
                     else:

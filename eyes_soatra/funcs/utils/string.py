@@ -1,5 +1,6 @@
 from eyes_soatra.constant.vars import xpath_prefix as __xpath_prefix
 from eyes_soatra.constant.vars import tag_stop as __tag_stop
+from eyes_soatra.constant.vars import protocols as __protocols
 import re as __re
 
 def strip_space(text):
@@ -49,3 +50,63 @@ def xpath_tag(string):
         tag += char
     
     return tag
+
+def protocol(url):
+    for each in __protocols:
+        if url.startswith(each):
+            return each
+        
+    return None
+
+def get_domain(url):
+    url = remove_protocol(url)
+    url = url.split('/')[0]
+
+    return url
+
+def join_path(*args):
+    result = ''
+    
+    for each in args:
+        if result == '':
+            result += each
+        
+        else:
+            if result.endswith('/'):
+                if each.startswith('/'):
+                    result += each.removeprefix('/')
+
+                else:
+                    result += each
+
+            else:
+                if each.startswith('/'):
+                    result += each
+
+                else:
+                    result += '/' + each
+
+    return result
+
+def remove_protocol(url):
+    return url.removeprefix('http://').removeprefix('https://')
+
+def remove_slash(url):
+    while url.endswith('/'):
+        url = url.removesuffix('/')
+    
+    return url
+
+def back_home(url, response):
+    if remove_slash(url) == remove_slash(response.url):
+        return False
+    
+    path = remove_protocol(response.url)
+    path = remove_slash(path)
+    
+    if not '/' in path:
+        return True
+
+    return False
+
+
