@@ -13,13 +13,13 @@ python3 install -r requirements.txt
 ## Second, type
 #### Window
 ```
-python setup.py install --user
+python start.py install --user
 ```
 #### Mac, Linux
 ```
-python3 setup.py install --user
+python3 start.py install --user
 ```
 
-You can use this package to achieve your purpose.
+Now, you can use this package to achieve your purpose.
 
 ---

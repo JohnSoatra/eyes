@@ -10,6 +10,7 @@ from eyes_soatra.funcs.utils.string import back_home as __back_home
 from eyes_soatra.funcs.utils.string import protocol as __protocol
 from eyes_soatra.funcs.utils.string import join_path as __join_path
 from eyes_soatra.funcs.utils.string import get_domain as __get_domain
+from eyes_soatra.funcs.utils.string import raw_url as __raw_url
 
 from translate import Translator as __Translator
 from lxml import html as __html
@@ -231,6 +232,7 @@ def view_page(
     **requests_options
 ):
     url = __re.sub(r'\s', '', url)
+    start_url = url
     tried = 0
     agents = []
     redirected_forward = False
@@ -260,7 +262,7 @@ def view_page(
                 },
             )
             status_code = response.status_code
-            redirected = redirected_forward if redirected_forward else response.is_redirect
+            redirected = redirected_forward if redirected_forward else __raw_url(start_url) != __raw_url(response.url)
             expired = response.headers.get('Expires')
             expired = expired if expired else (response.headers.get('expires') or False)
             expired_obj = {'expired': expired} if expired else {}
@@ -273,10 +275,10 @@ def view_page(
 
             if back_home:
                 return {
-                    'active': False,
+                    'active': None,
                     'checked': False,
                     **expired_obj,
-                    'error': f'Redirected to Home Page',
+                    'error': f'Back to Home Page',
                     'redirected': True,
                     'url': current_url,
                     'status': status_code,

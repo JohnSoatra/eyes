@@ -88,6 +88,9 @@ def join_path(*args):
 
     return result
 
+def raw_url(url):
+    return remove_slash(remove_protocol(url))
+
 def remove_protocol(url):
     return url.removeprefix('http://').removeprefix('https://')
 
