@@ -70,39 +70,39 @@ def __highlighter(
         
         for element in element_list:
             header_list = element.xpath('.//text()')
-            
-            for header in header_list:
-                for token in __re.split(separator, header):
+            header = ' '.join(header_list)
+
+            for token in __re.split(separator, header):
                     token = __strip_space(token)
-                    
+
                     if len(token) >= __header_min_length:
                         header_texts.append(token)
-    
+
     for xpath in __paragraph_xpaths + (paragraph_xpath if type(paragraph_xpath) == list else []):
         element_list = html.xpath(xpath)
         
         for element in element_list:
             paragraph_list = element.xpath('.//text()')
-            
-            for paragraph in paragraph_list:
-                for token in __re.split(separator, paragraph):
-                    token = __strip_space(token)
+            paragraph = ' '.join(paragraph_list)
 
-                    if len(token) >= __paragraph_min_length:
-                        paragraph_texts.append(token)
+            for token in __re.split(separator, paragraph):
+                token = __strip_space(token)
+
+                if len(token) >= __paragraph_min_length:
+                    paragraph_texts.append(token)
     
     for xpath in __content_xpaths + (content_xpath if type(content_xpath) == list else []):
         element_list = html.xpath(xpath)
-        
+
         for element in element_list:
             content_list = element.xpath('.//text()')
-            
-            for content in content_list:
-                for token in __re.split(separator, content):
-                    token = __strip_space(token)
-                    
-                    if len(token) >= __content_min_length:
-                        content_texts.append(token)
+            content = ' '.join(content_list)
+
+            for token in __re.split(separator, content):
+                token = __strip_space(token)
+                
+                if len(token) >= __content_min_length:
+                    content_texts.append(token)
             
     return {
         'headers': header_texts,
@@ -140,7 +140,7 @@ def __bad_page(
         header_keyword = ''
         
         for depend in __depends_404 + (depends if type(depends) == list else []):
-            for token in headers:                
+            for token in headers:
                 point = __jellyfish.jaro_similarity(depend, token)
                 
                 if point > header_high_point:

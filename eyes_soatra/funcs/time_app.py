@@ -8,7 +8,6 @@ from eyes_soatra.constant.depends.app_date.formats.end import formats as __forma
 from eyes_soatra.constant.user.user_agents import User_Agents as __User_Agents
 from eyes_soatra.funcs.utils.list import find as __find
 from eyes_soatra.funcs.utils.list import map_list as __map_list
-from eyes_soatra.funcs.utils.list import filter_list as __filter
 from eyes_soatra.funcs.utils.string import strip_space as __strip_space
 from eyes_soatra.funcs.utils.string import symbol as __symbol_all
 from eyes_soatra.funcs.utils.string import xpath_tag as __xpath_tag

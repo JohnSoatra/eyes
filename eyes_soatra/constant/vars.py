@@ -1,5 +1,11 @@
 from lxml import etree as __etree
 
+main_tags = (
+    'title',
+    'h1',
+    'h2'
+)
+
 header_xpaths = [
     '//title',
     '//h1',
