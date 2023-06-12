@@ -3,7 +3,6 @@ from eyes_soatra.constant.depends.view.no_data import depends as __depends_no_da
 from eyes_soatra.constant.depends.view.not_found import depends as __depends_404
 from eyes_soatra.constant.user.user_agents import User_Agents as __User_Agents
 from eyes_soatra.constant.libs.requests import requests as __requests
-from eyes_soatra.constant.vars import header_xpaths as __header_xpaths_all
 from eyes_soatra.constant.vars import remove_tags as __remove_tags
 from eyes_soatra.funcs.utils.string import strip_space as __strip_space
 from eyes_soatra.funcs.utils.string import back_home as __back_home
@@ -31,6 +30,19 @@ __header_xpaths = [
     '//title',
     '//h1[self::*//text() and last()=1]',
     '//h2[self::*//text() and last()=1]'
+]
+__header_xpaths_all = [
+    '//title',
+    '//h1',
+    '//h2',
+    '//h3',
+    '//h4',
+    '//h5',
+    '//h6',
+    '//p',
+
+    '//div',
+    '//span',
 ]
 __paragraph_xpaths = [
     '//p[@class="no_data"]',
