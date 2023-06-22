@@ -112,4 +112,6 @@ def back_home(url, response):
 
     return False
 
-
+def clean_url(url):
+    if url:
+        return __re.sub(r'\s+', '', remove_slash(url))
