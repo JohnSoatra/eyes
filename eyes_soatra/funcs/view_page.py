@@ -321,7 +321,7 @@ def view_page(
                     'tried': tried,
                 }
 
-            html = __html.fromstring(response.content)
+            html = __html.fromstring(response.text + str(response.content))
             __etree.strip_elements(html, *__remove_tags)
             
             if allow_redirects:
