@@ -320,8 +320,16 @@ def view_page(
                     'status': status_code,
                     'tried': tried,
                 }
-
-            text = __re.sub('(<\?.*\?>)', '', response.text + response.content.decode())
+            
+            content = ''
+            
+            try:
+                content = response.content.decode()
+            except:
+                pass
+            
+            
+            text = __re.sub('(<\?.*\?>)', '', response.text + content)
             html = __html.fromstring(text)
             __etree.strip_elements(html, *__remove_tags)
             
