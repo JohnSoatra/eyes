@@ -1,6 +1,9 @@
+#!python3
 from eyes_soatra.constant.vars import xpath_prefix as __xpath_prefix
 from eyes_soatra.constant.vars import tag_stop as __tag_stop
 from eyes_soatra.constant.vars import protocols as __protocols
+from eyes_soatra.constant.vars import invisibles as __invisibles
+from eyes_soatra.funcs.utils.list import map_list as __map_list
 import re as __re
 
 def strip_space(text):
@@ -115,3 +118,10 @@ def back_home(url, response):
 def clean_url(url):
     if url:
         return __re.sub(r'\s+', '', remove_slash(url))
+    
+    
+def remove_invisible(string: str):
+    unicodes = '|'.join(__map_list(lambda each: f'\\\\{each}', __invisibles))
+    __string = __re.sub (unicodes.encode(), b'', string.encode('unicode_escape'))
+
+    return __string.decode('unicode_escape')
