@@ -21,7 +21,7 @@ import time as __time
 import re as __re
 
 # private global variables
-__separator = '\||-|:|。'
+__separator = '\||-|:'
 __header_min_length = 3
 __paragraph_min_length = 7
 __content_min_length = 1
