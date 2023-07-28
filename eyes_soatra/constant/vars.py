@@ -259,3 +259,7 @@ invisibles = [
     'U000e01e0', 'U000e01e1', 'U000e01e2', 'U000e01e3', 'U000e01e4', 'U000e01e5', 'U000e01e6', 'U000e01e7', 'U000e01e8', 'U000e01e9',
     'U000e01ea', 'U000e01eb', 'U000e01ec', 'U000e01ed', 'U000e01ee', 'U000e01ef',
 ]
+
+char_removes = [
+    '🄬'
+]

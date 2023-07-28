@@ -3,6 +3,7 @@ from eyes_soatra.constant.vars import xpath_prefix as __xpath_prefix
 from eyes_soatra.constant.vars import tag_stop as __tag_stop
 from eyes_soatra.constant.vars import protocols as __protocols
 from eyes_soatra.constant.vars import invisibles as __invisibles
+from eyes_soatra.constant.vars import char_removes as __char_removes
 from eyes_soatra.funcs.utils.list import map_list as __map_list
 import re as __re
 
@@ -121,7 +122,8 @@ def clean_url(url):
     
     
 def remove_invisible(string: str):
+    _string = __re.sub ('|'.join(__char_removes), '', string)
     unicodes = '|'.join(__map_list(lambda each: f'\\\\{each}', __invisibles))
-    __string = __re.sub (unicodes.encode(), b'', string.encode('unicode_escape'))
+    __string = __re.sub (unicodes.encode(), b'', _string.encode('unicode_escape'))
 
     return __string.decode('unicode_escape')

@@ -10,6 +10,7 @@ from eyes_soatra.funcs.utils.string import protocol as __protocol
 from eyes_soatra.funcs.utils.string import join_path as __join_path
 from eyes_soatra.funcs.utils.string import get_domain as __get_domain
 from eyes_soatra.funcs.utils.string import raw_url as __raw_url
+from eyes_soatra.funcs.utils.string import remove_invisible as __remove_invisible
 
 from translate import Translator as __Translator
 from lxml import html as __html
@@ -330,6 +331,7 @@ def view_page(
             
             
             text = __re.sub('(<\?.*\?>)', '', response.text + content)
+            text = __remove_invisible(text)
             html = __html.fromstring(text)
             __etree.strip_elements(html, *__remove_tags)
             
