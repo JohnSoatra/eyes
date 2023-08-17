@@ -321,6 +321,8 @@ def view_page(
                     'status': status_code,
                     'tried': tried,
                 }
+                
+            response.encoding = response.apparent_encoding
             
             content = ''
             
