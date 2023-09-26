@@ -132,6 +132,7 @@ def __bad_page(
     show_header,
     show_paragraph,
     show_content,
+    exclude_depends,
 ):
     header_high_point = 0
     paragraph_high_point = 0
@@ -151,8 +152,10 @@ def __bad_page(
     if len(headers):
         header_similar = ''
         header_keyword = ''
-        
-        for depend in __depends_404 + (depends if type(depends) == list else []):
+        new_depends = __depends_404 + (depends if type(depends) == list else [])
+        new_depends = [each for each in new_depends if each not in exclude_depends] if type(exclude_depends) == list else new_depends
+
+        for depend in new_depends:
             for token in headers:
                 point = __jellyfish.jaro_similarity(depend, token)
                 
@@ -241,6 +244,8 @@ def view_page(
     show_header=False,
     show_paragraph=False,
     show_content=False,
+    
+    exclude_depends=None,
     
     **requests_options
 ):
@@ -394,6 +399,8 @@ def view_page(
                     show_header,
                     show_paragraph,
                     show_content,
+                    
+                    exclude_depends
                 ),
                 **expired_obj,
                 'redirected': redirected,
